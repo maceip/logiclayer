@@ -219,7 +219,7 @@ def test_evidence_question_fixture_corpus_meets_phase17_minimum(tmp_path: Path) 
     assert checklist.feature_count >= 8
     assert by_id["structural_graph"].gate_or_test
     assert by_id["semantic_blocks"].benchmark_mapping
-    assert by_id["evidence_retrieval"].status == "partial"
+    assert by_id["evidence_retrieval"].status == "implemented"
 
 
 def test_cli_exposes_logiclens_paper_path_commands(tmp_path: Path) -> None:

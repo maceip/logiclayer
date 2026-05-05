@@ -72,10 +72,13 @@ def build_paper_reproduction_checklist(repo_root: Path | None = None) -> PaperRe
             feature_id="evidence_retrieval",
             paper_feature="Evidence-grounded architecture question answering",
             backend_mapping="EvidenceBundle schema and artifact-backed explain/trace/find/answer helpers",
-            status="partial",
-            gate_or_test="evidence-benchmark; backend/tests/test_evidence_benchmark.py; backend/tests/test_logiclens_paper_path.py",
-            artifact="docs/evals/evidence_questions.json; canonical-graph.json; structural-artifact.json; semantic-artifact.json",
-            benchmark_mapping="evidence-benchmark scores expected blocks/files for active architecture questions; unsupported-answer scoring still needs expansion.",
+            status="implemented",
+            gate_or_test="evidence-benchmark (Phase 17); docs/evals/evidence_benchmark_report.json; backend/tests/test_evidence_benchmark.py::test_evidence_benchmark_meets_phase17_thresholds",
+            artifact="docs/evals/evidence_questions.json; docs/evals/fixtures/logiclens-evidence-benchmark/; docs/evals/evidence_benchmark_report.json",
+            benchmark_mapping="Committed fixture: 28 active test/logiclens rows; accuracy >= 0.80 and hallucination_rate == 0 enforced in CI.",
+            notes=[
+                "Real-repo variance for evidence-benchmark is Phase 18; parity is declared only on the committed logiclens fixture corpus.",
+            ],
         ),
         PaperFeatureStatus(
             feature_id="reactive_graph_tools",

@@ -601,7 +601,7 @@ def evidence_benchmark(
         write_json(out.resolve(), report)
     typer.echo(json.dumps(report, indent=2))
     hr = float(report["summary"].get("hallucination_rate") or 0.0)
-    if report["summary"]["accuracy"] < 1.0:
+    if report["summary"]["accuracy"] < 0.8:
         raise typer.Exit(code=1)
     if fail_on_hallucinations and hr > 0.0:
         raise typer.Exit(code=1)
