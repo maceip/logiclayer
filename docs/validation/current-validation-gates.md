@@ -1,6 +1,6 @@
 # Current Validation Gates
 
-Last updated: 2026-04-28
+Last updated: 2026-05-06
 
 ## Purpose
 
@@ -9,6 +9,8 @@ These gates are intentionally simple.
 They exist to prove that we are checking real implementation seams instead of hand-waving over them.
 
 They are built from existing code in the canonical backend and run against a real vendored repo plus a real saved artifact.
+
+**Separate rail:** LogicLens **evidence retrieval** on the committed `test/logiclens` fixture is gated by `evidence-benchmark` (accuracy ≥ 0.80, hallucination_rate = 0 with `--fail-on-hallucinations`) and `test_evidence_benchmark_meets_phase17_thresholds`, not by `validate-gates`.
 
 ## Command
 

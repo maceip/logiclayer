@@ -9,6 +9,8 @@ Canonical restart of the project around a verified stack:
 - MCP Python SDK
 - Continue CLI
 
+**Docs:** For paper-alignment counts and Phase 17 evidence gates, run `heart-transplant paper-checklist` and see `PROJECT.md`. This README summarizes operator paths and the LogicLens feature table.
+
 ## What We Kept
 
 - `vendor/`
@@ -70,7 +72,31 @@ Real now:
 - **MCP stdio server** (`heart-transplant mcp-serve` or `python -m heart_transplant.mcp_server`) exposing graph tools when Surreal is running and loaded
 - dated trending-repo input manifests for beta corpus refreshes (`docs/evals/trending-repos-2026-04-27.json`)
 - preserved 50-repo EC2 synthesis with landed fixes for the three first-run ingest crashes and six zero-node successes
-- LogicLens paper checklist and evidence-contract CLIs (`paper-checklist`, `canonical-graph`, `explain-node`, `explain-file`, `trace-dependency`, `query-entities`, `query-projects`, `trace-entity-workflow`, `find-architectural-block`, `answer-with-evidence`)
+- LogicLens paper checklist and evidence-contract CLIs (`paper-checklist`, `canonical-graph`, `explain-node`, `explain-file`, `trace-dependency`, `query-entities`, `query-projects`, **`query-codes`**, `trace-entity-workflow`, `find-architectural-block`, `answer-with-evidence`, **`evidence-benchmark`**)
+- **Phase 17 (LogicLens evidence retrieval on a fixed corpus)** — committed structural + semantic fixture under `docs/evals/fixtures/logiclens-evidence-benchmark/`, question set `docs/evals/evidence_questions.json` (28 active rows scoped to `test/logiclens`), last report `docs/evals/evidence_benchmark_report.json`, and CI test `test_evidence_benchmark_meets_phase17_thresholds`. The CLI fails if accuracy drops below **0.80** or, with `--fail-on-hallucinations`, if **hallucination_rate** is greater than zero. Real-repo variance for this harness is **Phase 18** (see `paper-checklist` notes on `evidence_retrieval`).
+
+## Phase 17: run the evidence benchmark
+
+From `backend/` (adjust paths if your shell differs):
+
+```powershell
+python -m heart_transplant.cli evidence-benchmark `
+  ..\docs\evals\fixtures\logiclens-evidence-benchmark `
+  --questions ..\docs\evals\evidence_questions.json `
+  --out ..\docs\evals\evidence_benchmark_report.json `
+  --fail-on-hallucinations
+```
+
+```bash
+cd backend
+python3 -m heart_transplant.cli evidence-benchmark \
+  ../docs/evals/fixtures/logiclens-evidence-benchmark \
+  --questions ../docs/evals/evidence_questions.json \
+  --out ../docs/evals/evidence_benchmark_report.json \
+  --fail-on-hallucinations
+```
+
+Regenerate the committed report after intentional retrieval or fixture changes, then commit the updated JSON.
 
 ## Canonical Graph Contract
 
@@ -95,8 +121,7 @@ roundtrip.
 ## LogicLens Paper Feature Map
 
 This table maps the paper-shaped capabilities we are rebuilding to the current
-implementation surface. Status is intentionally conservative: "partial" means
-the path exists, but the paper-grade gate or benchmark is not fully green yet.
+implementation surface. Status follows `heart-transplant paper-checklist` (**10** features as of 2026-05). **Partial** means the path exists but the paper-grade gate or benchmark is not fully green for that feature; **implemented** means the checklist marks it satisfied (evidence retrieval only on the committed Phase 17 fixture — see above).
 
 | Paper feature | Current status | Implemented in | CLI / artifact / benchmark |
 | --- | --- | --- | --- |
@@ -105,8 +130,8 @@ the path exists, but the paper-grade gate or benchmark is not fully green yet.
 | Canonical multi-layer architecture graph | Partial | `backend/src/heart_transplant/canonical_graph.py`, `backend/src/heart_transplant/multimodal/` | `heart-transplant canonical-graph`, `canonical-graph.json`, `graph-integrity` |
 | Semantic component/block labeling | Partial | `backend/src/heart_transplant/ontology.py`, `backend/src/heart_transplant/classify/`, `backend/src/heart_transplant/semantic/` | `classify`, `semantic-artifact.json`, `block-benchmark`, `docs/evals/gold_block_benchmark*.json` |
 | Domain entities and semantic action edges | Partial | `backend/src/heart_transplant/semantic/enrichment.py`, `backend/src/heart_transplant/canonical_graph.py`, `backend/src/heart_transplant/evidence.py` | `semantic-artifact.json`, `canonical-graph.json`, `query-entities`, `trace-entity-workflow` |
-| Evidence-grounded architecture Q&A | Partial | `backend/src/heart_transplant/evidence.py`, `backend/src/heart_transplant/db/graph_queries.py`, `backend/src/heart_transplant/mcp_server.py` | `explain-node`, `explain-file`, `trace-dependency`, `find-architectural-block`, `answer-with-evidence` |
-| Reactive graph retrieval tools | Partial | `backend/src/heart_transplant/evidence.py`, `backend/src/heart_transplant/db/graph_queries.py`, `backend/src/heart_transplant/mcp_server.py` | `query-projects`, `query-entities`, `trace-entity-workflow`, `mcp-serve`, SurrealDB graph tools |
+| Evidence-grounded architecture Q&A | **Implemented** (Phase 17 fixture gate) | `backend/src/heart_transplant/evidence.py`, `backend/src/heart_transplant/db/graph_queries.py`, `backend/src/heart_transplant/mcp_server.py` | `explain-node`, `explain-file`, `trace-dependency`, `find-architectural-block`, `answer-with-evidence`, `evidence-benchmark`; committed fixture + `docs/evals/evidence_benchmark_report.json`; `pytest` Phase 17 threshold test |
+| Reactive graph retrieval tools | Partial | `backend/src/heart_transplant/evidence.py`, `backend/src/heart_transplant/db/graph_queries.py`, `backend/src/heart_transplant/mcp_server.py` | `query-projects`, `query-entities`, **`query-codes`**, `trace-entity-workflow`, `mcp-serve`, SurrealDB graph tools (Graph Query remains DB-backed; see checklist) |
 | Queryable graph backend | Partial | `backend/src/heart_transplant/db/`, `backend/src/heart_transplant/mcp_server.py` | `load-surreal`, `verify-surreal`, `mcp-serve`, SurrealDB `ht_code` / `ht_edge` rows |
 | Architecture evolution over time | Partial | `backend/src/heart_transplant/temporal/` | `temporal-scan`, `temporal-scan --replay-snapshots`, `temporal-diff`, `temporal-gates` |
 | Cross-layer code/test/API/infra reasoning | Partial | `backend/src/heart_transplant/multimodal/`, `backend/src/heart_transplant/canonical_graph.py` | `multimodal-ingest`, `canonical-graph`, future correlation accuracy benchmark |
@@ -117,8 +142,11 @@ the path exists, but the paper-grade gate or benchmark is not fully green yet.
 Deferred / active follow-up (see [docs/roadmaps/logiclens-paper-grade-roadmap.md](docs/roadmaps/logiclens-paper-grade-roadmap.md)):
 
 - end-to-end **Continue** operator session proof on your machine
-- full paper-style eval harness and scoring (starter gold file: [docs/evals/gold_block_benchmark.json](docs/evals/gold_block_benchmark.json))
+- **evidence-benchmark on diverse real repos** (beyond the committed `test/logiclens` fixture) — Phase 18 measurement
+- block classification: full paper-style semantic scoring (starter gold: [docs/evals/gold_block_benchmark.json](docs/evals/gold_block_benchmark.json))
 - rerun of the full 50-repo corpus after parser/traversal fixes, replacing the preserved first-synthesis baseline only when the strict corpus gate passes
+
+Machine-readable status: `heart-transplant paper-checklist` (currently **10** tracked features; **2** implemented — structural graph + evidence retrieval; **8** partial).
 
 ## Beta Corpus
 

@@ -6,7 +6,7 @@ Choose `DEFAULT_CODES_MIN_SCORE` (`evidence.py`) so `query_codes` **abstains** o
 
 ## Normalization
 
-`_normalized_lexical_score` uses `_text_score(query, haystack) / (max(|terms|, 1) + NORMALIZED_LEXICAL_DENOM_BIAS)` with `NORMALIZED_LEXICAL_DENOM_BIAS = 3.0`.
+`query_codes` uses **`_normalized_lexical_score_for_codes`** (query terms with boilerplate stripped — see `evidence.py`), not the generic `_normalized_lexical_score` alone.
 
 ## Confidence mapping
 
@@ -38,3 +38,5 @@ Evaluated against **active** rows in `docs/evals/evidence_questions.json` scoped
 | **0.10** | Aggressive retrieval; risk of weak matches on noisy corpora |
 
 When ingest improves token overlap per query, revisit using `evidence-benchmark` on `docs/evals/evidence_questions.json`.
+
+**Committed report:** After changing retrieval logic, regenerate and commit `docs/evals/evidence_benchmark_report.json` (see `README.md`).

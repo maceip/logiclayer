@@ -73,3 +73,7 @@ Before making this a beta headline, keep using the dedicated `block-benchmark` c
 6. a corpus table including the daily-trending vendored repos.
 
 Target beta gate: `>=80%` scorable holdout accuracy, `<=15%` missing-node rate, and no known contradictory gold rows in the scored set.
+
+---
+
+**Related (2026-05):** Block accuracy is independent of the **evidence-benchmark** rail (`docs/evals/evidence_questions.json`, committed fixture under `docs/evals/fixtures/logiclens-evidence-benchmark/`). See `gold-standards.md` and `README.md`.

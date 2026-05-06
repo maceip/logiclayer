@@ -72,3 +72,15 @@ When multiple labels target the same file or node, the generator produces one ro
 ## Benchmark Report Contract
 
 Every JSON report emitted by `block-benchmark` includes a `gold_health` object and summary fields for gold health status, review rows, multi-label rows, missing required fields, and active contradictory targets. A beta benchmark is not launch-ready unless the gold health summary passes for the scored split.
+
+## Evidence retrieval rail (Phase 17)
+
+Architecture Q&A over artifacts is scored separately from block classification:
+
+- **Questions**: `docs/evals/evidence_questions.json` (active rows; the parity gate uses **28** rows scoped to `repo_name: test/logiclens`).
+- **Fixture**: `docs/evals/fixtures/logiclens-evidence-benchmark/`.
+- **Report**: `docs/evals/evidence_benchmark_report.json` (commit when the harness or fixture changes).
+- **CLI** (from `backend/`): `python -m heart_transplant.cli evidence-benchmark <fixture-dir> --questions ../docs/evals/evidence_questions.json --fail-on-hallucinations` (see `README.md`).
+- **CI**: `test_evidence_benchmark_meets_phase17_thresholds` enforces **accuracy ≥ 0.80** and **hallucination_rate = 0** on that corpus.
+
+Do not conflate this rail with `gold_block_benchmark*.json`; they measure different contracts.

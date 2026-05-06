@@ -17,6 +17,8 @@ This run used the 50-repo manifest in `docs/evals/trending-repos-top50-2026-04-2
 
 The runner cloned one repository at a time on EC2 host `16xl`, ran `heart_transplant.cli ingest-local`, ran `phase-metrics --classify-if-missing` when ingest succeeded, recorded JSONL, and deleted the working clone before moving to the next repository.
 
+**Note (2026-05):** This corpus exercises **ingest + block metrics** across many repos; it is not the same as the **Phase 17** evidence-benchmark fixture (single committed `test/logiclens` artifact for architecture Q&A scoring). See `README.md` / `PROJECT.md`.
+
 ## Preserved Artifacts
 
 - `docs/evals/trending-top50-ec2-results-2026-04-27.jsonl`

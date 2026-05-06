@@ -25,6 +25,8 @@ The hosted beta path runs behind `heart-transplant beta-serve`.
 - runs graph integrity
 - returns bounded graph/block/file-surface output to the browser
 
+Long term, architecture Q&A surfaces should return **EvidenceBundle-shaped** receipts consistent with the Phase 17 local harness (`evidence-benchmark` on the committed fixture — see `README.md` / `PROJECT.md`).
+
 The unauthenticated endpoint intentionally does not run package installs, private local paths, OpenAI calls, or arbitrary shell commands from repository content.
 
 ## Browser Runtime Later

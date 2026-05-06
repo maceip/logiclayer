@@ -1,8 +1,14 @@
 # LogicLens-Paper-Grade Roadmap
 
+Last updated: 2026-05-06
+
+**Checklist snapshot**: run `heart-transplant paper-checklist` — the repo tracks **10** paper-shaped features (**2** implemented, **8** partial, **0** missing). The second **implemented** item is **evidence retrieval**, gated on the **committed Phase 17 fixture** (`docs/evals/fixtures/logiclens-evidence-benchmark/`, `docs/evals/evidence_questions.json`, `docs/evals/evidence_benchmark_report.json`, CI test). For the long-form April 2026 assessment below, treat prose that still says “1 implemented” as **superseded** by the checklist output.
+
+---
+
 Last updated: 2026-04-28
 
-**Major update**: The roadmap now reflects the April 27-28 work: 50-repo corpus synthesis, iterative ingest traversal, Rust/Java/C/C++ parser coverage, file-surface nodes, SCIP-only orphan promotion, canonical graph/evidence surfaces, `paper-checklist`, and the GitHub Pages repo-surgery console. Phases 9–14 remain the organizing structure, but the current claim is narrower: 1 paper feature implemented, 7 partial, 0 missing according to `heart-transplant paper-checklist`.
+**Major update (April 2026 archive below)**: The roadmap body reflects the April 27-28 work: 50-repo corpus synthesis, iterative ingest traversal, Rust/Java/C/C++ parser coverage, file-surface nodes, SCIP-only orphan promotion, canonical graph/evidence surfaces, `paper-checklist`, and the GitHub Pages repo-surgery console. Phases 9–14 remain the organizing structure. **Do not** use the sentence below about “1 paper feature implemented” as current — use `paper-checklist` (see box at top of this file).
 
 ## Purpose
 
@@ -23,7 +29,7 @@ This roadmap started from the older commands below and has been updated with the
 - `.\.venv-win\Scripts\python.exe -m pytest`
   - current recently verified result: `61 passed, 1 warning`
 - `.\.venv-win\Scripts\python.exe -m heart_transplant.cli paper-checklist`
-  - current result: `8` features tracked, `1` implemented, `7` partial, `0` missing
+  - use the emitted JSON for current counts; as of 2026-05-06: **10** features, **2** implemented, **8** partial, **0** missing
 - `docs/evals/trending-top50-ec2-first-synthesis-2026-04-27.md`
   - preserved first 50-repo EC2 synthesis with 3 ingest crashes and 6 zero-node successes documented
 - `docs/evals/block-classification-benchmark-2026-04-27.md`
@@ -83,8 +89,8 @@ Older reference artifact retained for comparison:
 
 6. `LogicLens evidence-contract surfaces`
 
-- Implemented through `canonical-graph`, `explain-node`, `explain-file`, `trace-dependency`, `find-architectural-block`, `answer-with-evidence`, `evidence-benchmark`, and `paper-checklist`
-- Current status is partial because the question set is still tiny and unsupported-answer scoring is not complete
+- Implemented through `canonical-graph`, `explain-node`, `explain-file`, `trace-dependency`, `find-architectural-block`, `answer-with-evidence`, `query-codes`, `evidence-benchmark`, and `paper-checklist`
+- **Phase 17**: `evidence_retrieval` is **implemented** on the committed `test/logiclens` fixture (see `docs/evals/evidence_benchmark_report.json` and `test_evidence_benchmark_meets_phase17_thresholds`). Broader real-repo scoring remains future work (Phase 18+).
 
 7. `50-repo corpus pressure`
 

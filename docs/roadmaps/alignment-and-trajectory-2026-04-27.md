@@ -1,5 +1,7 @@
 # Alignment And Trajectory - 2026-04-28
 
+**Status note (2026-05-06):** Phase 17 fixture-gated evidence retrieval is **implemented** per `paper-checklist`; see `README.md` and `PROJECT.md` for the frozen corpus and CLI gate.
+
 Purpose: reset the path from the current `heart-transplant` backend toward two connected products:
 
 - a LogicLens-style backend that implements the paper-grade architecture we set out to build,
@@ -7,7 +9,7 @@ Purpose: reset the path from the current `heart-transplant` backend toward two c
 
 ## Current Position
 
-We are not at self-serve private-beta product yet, but the backend spine is now materially stronger than it was before the 50-repo pass:
+We are not at self-serve private-beta product yet, but the backend spine is materially stronger than before the 50-repo pass, and **Phase 17** now provides a **committed, CI-gated** evidence-benchmark on the `test/logiclens` fixture (`docs/evals/fixtures/logiclens-evidence-benchmark/`, `docs/evals/evidence_benchmark_report.json`). **`paper-checklist` marks `evidence_retrieval` as implemented on that corpus only**; real-repo variance is explicitly deferred.
 
 - Tree-sitter ingest plus SCIP-backed identity for local repos.
 - File-surface graph nodes and SCIP-only orphan promotion so graph joins target materialized nodes.
@@ -19,7 +21,7 @@ We are not at self-serve private-beta product yet, but the backend spine is now 
 - Gold benchmark files and dated trending-repo corpus input rails.
 - A preserved 50-repo EC2 synthesis with the nine first-run complications documented and fix notes landed.
 
-The current shape is demoable and useful for internal proof, but not self-serve beta-ready. The remaining gaps are measurement, rerun evidence, retrieval quality, and operator contract gaps, not a lack of direction.
+The current shape is demoable and useful for internal proof, but not self-serve beta-ready. The remaining gaps are **real-repo** evidence measurement (Phase 18+), corpus rerun evidence, semantic holdout quality, and operator contract polish — not a lack of direction.
 
 ## North Star
 
@@ -50,7 +52,7 @@ Required capabilities:
 
 - Structural fidelity: every code/file/test/API/infra node that can be targeted by an edge must be materialized and addressable.
 - Semantic measurement: block labels, summaries, entities, and actions must be benchmarked against holdout repos, not only generated.
-- Retrieval evidence: graph traversal must return scoped evidence with stable IDs, file ranges, and reasons. The first `evidence-benchmark` harness now exists; the remaining work is broadening `docs/evals/evidence_questions.json` and moving beyond the deterministic router.
+- Retrieval evidence: graph traversal returns scoped **EvidenceBundle** receipts (node IDs, paths, confidence, limitations). **Phase 17** freezes a **fixture-based** `evidence-benchmark` (accuracy ≥ 0.80, hallucination_rate = 0); extending the same harness to diverse real repos without a version bump is **Phase 18** work.
 - Temporal replay: historical snapshots must replay ingest over historical source; current replay covers selected Tree-sitter snapshots, while SCIP + semantic replay is still future work.
 - Multimodal joins: test, OpenAPI, infra, and code layers must join on real nodes, not synthetic dangling IDs.
 - Operator contract: CLI/MCP commands must run on a clean Windows checkout without private harnesses or encoding failures.

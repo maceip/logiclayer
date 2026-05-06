@@ -1,6 +1,6 @@
 # Future Capability Gates
 
-Last updated: 2026-04-28
+Last updated: 2026-05-06
 
 ## Purpose
 
@@ -31,6 +31,8 @@ This document defines the gates we should eventually pass before claiming:
 2. A gate does not count if the result depends on vendor-specific or repo-specific hardcoding.
 3. A gate should be runnable on at least one held-out repo before we call the capability general.
 4. A gate should prefer structured output over narrative output.
+
+**Note:** The **Phase 17** `evidence-benchmark` gate is intentionally run on a **small committed fixture** to freeze regression detection; expanding to “real repo sets” without hardcoding is covered by later phases and the gates below — do not treat the fixture alone as proof across arbitrary GitHub repos.
 
 ## Repo Sets
 

@@ -116,6 +116,8 @@ Non-goals:
 
 ## Phase 17: LogicLens Evidence Retrieval Contract
 
+**Status (2026-05, `main`):** The **fixture-bound** contract is met: committed artifact under `docs/evals/fixtures/logiclens-evidence-benchmark/`, ≥20 active `test/logiclens` rows in `docs/evals/evidence_questions.json` (28 active), committed `docs/evals/evidence_benchmark_report.json`, CLI gate (**accuracy ≥ 0.80**, **hallucination_rate = 0** with `--fail-on-hallucinations`), and `test_evidence_benchmark_meets_phase17_thresholds`. The `paper-checklist` feature `evidence_retrieval` is **implemented** on this corpus only; **real-repo** expansion is explicitly **Phase 18** (see checklist notes).
+
 Goal: provide the backend behavior the LogicLens paper implies: answers and traversals with receipts.
 
 Scope:

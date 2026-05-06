@@ -1,6 +1,6 @@
 # Vendored Repo Ground Truth
 
-This report inventories declared modules, observed external imports, and the current block footprint for the vendored repo corpus.
+This report inventories declared modules, observed external imports, and the current block footprint for the vendored repo corpus. It supports the **block gold** rail (`gold_block_benchmark*.json`), not the **evidence-benchmark** rail (`evidence_questions.json`); see `gold-standards.md` for both.
 
 ## Elysia-routing-controllers
 
