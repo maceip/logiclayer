@@ -1,0 +1,32 @@
+[project]
+name = "logiclens-cleanroom"
+version = "0.1.0"
+description = "Clean-room LogicLens (arXiv:2601.10773) pipeline: structural graph, LLM semantic layer, five retrieval tools, ReAct agent."
+requires-python = ">=3.13"
+dependencies = [
+  "pydantic>=2.11,<3",
+  "typer>=0.16,<1",
+  "tree-sitter>=0.25,<0.26",
+  "tree-sitter-language-pack>=0.7,<1",
+  "httpx>=0.28,<1",
+  "openai>=1.50,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<9"]
+
+[project.scripts]
+logiclens-cleanroom = "logiclens_cleanroom.cli:app"
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

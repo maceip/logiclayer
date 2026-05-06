@@ -1,5 +1,6 @@
 backend/.venv/
 backend/.venv-win/
+logiclens_cleanroom/.venv/
 backend/.pytest_cache/
 backend/.pytest_tmp/
 .heart-transplant/
