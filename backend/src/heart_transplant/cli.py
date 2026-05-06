@@ -8,16 +8,7 @@ import typer
 from heart_transplant.artifact_manifest import build_artifact_manifest, run_artifact_manifest, summarize_artifact_manifest, write_artifact_manifest
 from heart_transplant.artifact_store import artifact_root, persist_structural_artifact, write_json
 from heart_transplant.canonical_graph import build_canonical_graph
-from heart_transplant.evidence import (
-    answer_with_evidence,
-    explain_file,
-    explain_node,
-    find_architectural_block,
-    query_entities,
-    query_projects,
-    trace_dependency,
-    trace_entity_workflow,
-)
+from heart_transplant.evidence import answer_with_evidence, DEFAULT_CODES_MIN_SCORE, explain_file, explain_node, find_architectural_block, query_codes, query_entities, query_projects, trace_dependency, trace_entity_workflow
 from heart_transplant.graph_smoke import run_graph_smoke
 from heart_transplant.ingest.corpus_ingest import ingest_vendors
 from heart_transplant.ingest.treesitter_ingest import ingest_repository
@@ -261,6 +252,29 @@ def query_projects_command(
     """Return a project-centered evidence bundle from summaries and adjacent code nodes."""
 
     typer.echo(query_projects(artifact_dir.resolve(), query, limit=limit).model_dump_json(indent=2))
+
+
+@app.command("query-codes")
+def query_codes_command(
+    query: str,
+    artifact_dir: Path = typer.Option(..., "--artifact-dir", exists=True, file_okay=False, dir_okay=True),
+    limit: int = typer.Option(20, "--limit"),
+    subgraph_depth: int = typer.Option(3, "--subgraph-depth"),
+    subgraph_max_edges: int = typer.Option(120, "--subgraph-max-edges"),
+    min_score: float = typer.Option(DEFAULT_CODES_MIN_SCORE, "--min-score", help="Abstain when best normalized lexical score is below this."),
+) -> None:
+    """Return a code-centered evidence bundle (LogicLens paper Codes Tool shape)."""
+
+    typer.echo(
+        query_codes(
+            artifact_dir.resolve(),
+            query,
+            limit=limit,
+            subgraph_depth=subgraph_depth,
+            subgraph_max_edges=subgraph_max_edges,
+            min_score=min_score,
+        ).model_dump_json(indent=2)
+    )
 
 
 @app.command("trace-entity-workflow")
@@ -569,6 +583,11 @@ def evidence_benchmark(
         help="Evidence question JSON set.",
     ),
     out: Path | None = typer.Option(None, "--out", help="Optional JSON report path."),
+    fail_on_hallucinations: bool = typer.Option(
+        False,
+        "--fail-on-hallucinations",
+        help="Exit non-zero when unsupported rows hallucinate (evidence where abstention expected).",
+    ),
 ) -> None:
     """Score evidence-backed architecture answers against expected files and blocks."""
 
@@ -576,11 +595,15 @@ def evidence_benchmark(
         artifact_dir.resolve(),
         load_evidence_questions(questions.resolve()),
         question_set_path=questions.resolve(),
+        fail_on_hallucinations=fail_on_hallucinations,
     )
     if out:
         write_json(out.resolve(), report)
     typer.echo(json.dumps(report, indent=2))
-    if report["summary"]["accuracy"] < 1.0:
+    hr = float(report["summary"].get("hallucination_rate") or 0.0)
+    if report["summary"]["accuracy"] < 0.8:
+        raise typer.Exit(code=1)
+    if fail_on_hallucinations and hr > 0.0:
         raise typer.Exit(code=1)
 
 

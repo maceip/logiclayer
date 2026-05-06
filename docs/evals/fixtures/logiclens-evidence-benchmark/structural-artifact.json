@@ -1,0 +1,238 @@
+{
+  "artifact_id": "test__logiclens",
+  "repo_name": "test/logiclens",
+  "repo_path": "/workspace/docs/evals/fixtures/logiclens-evidence-benchmark/_build_repo",
+  "project_id": "project:test_logiclens",
+  "node_count": 4,
+  "edge_count": 6,
+  "parser_backends": [
+    "typescript"
+  ],
+  "project_node": {
+    "node_id": "project:test_logiclens",
+    "name": "logiclens",
+    "repo_name": "test/logiclens"
+  },
+  "file_nodes": [
+    {
+      "node_id": "repo://test/logiclens/auth.ts",
+      "file_path": "auth.ts",
+      "repo_name": "test/logiclens",
+      "language": "typescript",
+      "project_id": "project:test_logiclens"
+    },
+    {
+      "node_id": "repo://test/logiclens/db.ts",
+      "file_path": "db.ts",
+      "repo_name": "test/logiclens",
+      "language": "typescript",
+      "project_id": "project:test_logiclens"
+    }
+  ],
+  "code_nodes": [
+    {
+      "scip_id": "codefile:auth.ts",
+      "name": "auth.ts",
+      "kind": "file_surface",
+      "file_path": "auth.ts",
+      "range": {
+        "start_line": 1,
+        "start_col": 0,
+        "end_line": 2,
+        "end_col": 0
+      },
+      "content": "export function sessionGuard() { return true; }\n",
+      "repo_name": "test/logiclens",
+      "language": "typescript",
+      "project_id": "project:test_logiclens",
+      "original_provisional_id": "codefile:auth.ts",
+      "provisional_scip_id": null,
+      "symbol_source": "file_surface",
+      "scip_kind": null,
+      "node_id": "codefile:auth.ts"
+    },
+    {
+      "scip_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1",
+      "name": "sessionGuard",
+      "kind": "function",
+      "file_path": "auth.ts",
+      "range": {
+        "start_line": 1,
+        "start_col": 8,
+        "end_line": 1,
+        "end_col": 48
+      },
+      "content": "function sessionGuard() { return true; }",
+      "repo_name": "test/logiclens",
+      "language": "typescript",
+      "project_id": "project:test_logiclens",
+      "original_provisional_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1",
+      "provisional_scip_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1",
+      "symbol_source": "provisional",
+      "scip_kind": null,
+      "node_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1"
+    },
+    {
+      "scip_id": "codefile:db.ts",
+      "name": "db.ts",
+      "kind": "file_surface",
+      "file_path": "db.ts",
+      "range": {
+        "start_line": 1,
+        "start_col": 0,
+        "end_line": 5,
+        "end_col": 0
+      },
+      "content": "export function persistSession() {\n  sessionGuard();\n  return 1;\n}\n",
+      "repo_name": "test/logiclens",
+      "language": "typescript",
+      "project_id": "project:test_logiclens",
+      "original_provisional_id": "codefile:db.ts",
+      "provisional_scip_id": null,
+      "symbol_source": "file_surface",
+      "scip_kind": null,
+      "node_id": "codefile:db.ts"
+    },
+    {
+      "scip_id": "repo://test/logiclens/db.ts#persistSession:function:1",
+      "name": "persistSession",
+      "kind": "function",
+      "file_path": "db.ts",
+      "range": {
+        "start_line": 1,
+        "start_col": 8,
+        "end_line": 4,
+        "end_col": 2
+      },
+      "content": "function persistSession() {\n  sessionGuard();\n  return 1;\n}",
+      "repo_name": "test/logiclens",
+      "language": "typescript",
+      "project_id": "project:test_logiclens",
+      "original_provisional_id": "repo://test/logiclens/db.ts#persistSession:function:1",
+      "provisional_scip_id": "repo://test/logiclens/db.ts#persistSession:function:1",
+      "symbol_source": "provisional",
+      "scip_kind": null,
+      "node_id": "repo://test/logiclens/db.ts#persistSession:function:1"
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "repo://test/logiclens/auth.ts",
+      "target_id": "codefile:auth.ts",
+      "edge_type": "CONTAINS",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": null
+    },
+    {
+      "source_id": "repo://test/logiclens/auth.ts",
+      "target_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1",
+      "edge_type": "CONTAINS",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": null
+    },
+    {
+      "source_id": "repo://test/logiclens/db.ts",
+      "target_id": "codefile:db.ts",
+      "edge_type": "CONTAINS",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": null
+    },
+    {
+      "source_id": "repo://test/logiclens/db.ts",
+      "target_id": "repo://test/logiclens/db.ts#persistSession:function:1",
+      "edge_type": "CONTAINS",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": null
+    },
+    {
+      "source_id": "project:test_logiclens",
+      "target_id": "repo://test/logiclens/auth.ts",
+      "edge_type": "CONTAINS",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": null
+    },
+    {
+      "source_id": "project:test_logiclens",
+      "target_id": "repo://test/logiclens/db.ts",
+      "edge_type": "CONTAINS",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": null
+    },
+    {
+      "source_id": "repo://test/logiclens/auth.ts",
+      "target_id": "repo://test/logiclens/db.ts",
+      "edge_type": "DEPENDS_ON_FILE",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": "fixture_cross_file"
+    },
+    {
+      "source_id": "codefile:auth.ts",
+      "target_id": "codefile:db.ts",
+      "edge_type": "CALLS",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": "scip"
+    },
+    {
+      "source_id": "project:test_logiclens",
+      "target_id": "repo://test/logiclens/db.ts",
+      "edge_type": "CONTAINS",
+      "repo_name": "test/logiclens",
+      "target_repo": null,
+      "provenance": "treesitter"
+    }
+  ],
+  "neighborhoods": {
+    "codefile:auth.ts": {
+      "code_id": "codefile:auth.ts",
+      "file_path": "auth.ts",
+      "project_id": "project:test_logiclens",
+      "file_node_id": "repo://test/logiclens/auth.ts",
+      "imports": [],
+      "imported_by": [],
+      "same_file": [
+        "repo://test/logiclens/auth.ts#sessionGuard:function:1"
+      ]
+    },
+    "repo://test/logiclens/auth.ts#sessionGuard:function:1": {
+      "code_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1",
+      "file_path": "auth.ts",
+      "project_id": "project:test_logiclens",
+      "file_node_id": "repo://test/logiclens/auth.ts",
+      "imports": [],
+      "imported_by": [],
+      "same_file": [
+        "codefile:auth.ts"
+      ]
+    },
+    "codefile:db.ts": {
+      "code_id": "codefile:db.ts",
+      "file_path": "db.ts",
+      "project_id": "project:test_logiclens",
+      "file_node_id": "repo://test/logiclens/db.ts",
+      "imports": [],
+      "imported_by": [],
+      "same_file": [
+        "repo://test/logiclens/db.ts#persistSession:function:1"
+      ]
+    },
+    "repo://test/logiclens/db.ts#persistSession:function:1": {
+      "code_id": "repo://test/logiclens/db.ts#persistSession:function:1",
+      "file_path": "db.ts",
+      "project_id": "project:test_logiclens",
+      "file_node_id": "repo://test/logiclens/db.ts",
+      "imports": [],
+      "imported_by": [],
+      "same_file": [
+        "codefile:db.ts"
+      ]
+    }
+  }
+}

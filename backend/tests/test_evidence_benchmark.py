@@ -106,6 +106,34 @@ def test_answer_with_evidence_handles_multi_block_paper_question(tmp_path: Path)
     assert "route.ts" in files
 
 
+def test_evidence_benchmark_meets_phase17_thresholds() -> None:
+    """Phase 17: committed logiclens fixture must keep accuracy >= 0.80 and zero hallucinations."""
+    repo_root = Path(__file__).resolve().parents[2]
+    artifact_dir = repo_root / "docs" / "evals" / "fixtures" / "logiclens-evidence-benchmark"
+    questions_path = repo_root / "docs" / "evals" / "evidence_questions.json"
+    report_path = repo_root / "docs" / "evals" / "evidence_benchmark_report.json"
+
+    assert artifact_dir.is_dir()
+    assert questions_path.is_file()
+    assert report_path.is_file()
+
+    questions = load_evidence_questions(questions_path)
+    report = run_evidence_benchmark(
+        artifact_dir,
+        questions,
+        question_set_path=questions_path,
+        fail_on_hallucinations=True,
+    )
+    summary = report["summary"]
+    assert summary["scored_questions"] == 28
+    assert summary["accuracy"] >= 0.8
+    assert summary["hallucination_rate"] == 0.0
+
+    committed = json.loads(report_path.read_text(encoding="utf-8"))
+    assert committed["summary"]["accuracy"] >= 0.8
+    assert committed["summary"]["hallucination_rate"] == 0.0
+
+
 def test_evidence_benchmark_scores_unsupported_questions_as_abstentions(tmp_path: Path) -> None:
     artifact_dir = _artifact_with_semantics(tmp_path)
     questions = [

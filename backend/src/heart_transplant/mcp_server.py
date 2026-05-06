@@ -9,7 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from heart_transplant.blast_radius import compute_impact_subgraph
 from heart_transplant.db import graph_queries as gq
-from heart_transplant.evidence import query_entities, query_projects, trace_entity_workflow
+from heart_transplant.evidence import DEFAULT_CODES_MIN_SCORE, query_codes, query_entities, query_projects, trace_entity_workflow
 
 mcp = FastMCP(
     "heart-transplant",
@@ -114,6 +114,27 @@ def query_projects_artifact_tool(
     """Project-centered retrieval from on-disk artifacts, matching the LogicLens Projects Tool shape."""
 
     return query_projects(Path(artifact_dir).expanduser().resolve(), query, limit=limit).model_dump_json(indent=2)
+
+
+@mcp.tool(name="query_codes_artifact")
+def query_codes_artifact_tool(
+    artifact_dir: str,
+    query: str,
+    limit: int = 20,
+    subgraph_depth: int = 3,
+    subgraph_max_edges: int = 120,
+    min_score: float = DEFAULT_CODES_MIN_SCORE,
+) -> str:
+    """Code-centered retrieval from on-disk artifacts, matching the LogicLens Codes Tool shape."""
+
+    return query_codes(
+        Path(artifact_dir).expanduser().resolve(),
+        query,
+        limit=limit,
+        subgraph_depth=subgraph_depth,
+        subgraph_max_edges=subgraph_max_edges,
+        min_score=min_score,
+    ).model_dump_json(indent=2)
 
 
 @mcp.tool(name="trace_entity_workflow_artifact")

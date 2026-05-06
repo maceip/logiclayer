@@ -1,0 +1,934 @@
+{
+  "report_type": "evidence_benchmark",
+  "artifact_dir": "docs/evals/fixtures/logiclens-evidence-benchmark",
+  "question_set": "docs/evals/evidence_questions.json",
+  "summary": {
+    "input_questions": 31,
+    "active_questions": 30,
+    "scored_questions": 28,
+    "correct": 28,
+    "accuracy": 1.0,
+    "skipped_repo_scope": 2,
+    "unsupported_questions": 8,
+    "unsupported_correct": 8,
+    "unsupported_correct_rate": 1.0,
+    "hallucination_count": 0,
+    "hallucination_rate": 0.0,
+    "missing_evidence_count": 0,
+    "fail_on_hallucinations": true
+  },
+  "rows": [
+    {
+      "id": "fixture-access-control",
+      "repo_name": "test/logiclens",
+      "question": "Where is auth handled?",
+      "expected_blocks": [
+        "Access Control"
+      ],
+      "expected_files": [
+        "auth.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": false,
+      "source": "Unit-test fixture",
+      "notes": "Keeps the evidence benchmark covered by a tiny deterministic fixture.",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control"
+      ],
+      "source_files": [
+        "auth.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-unsupported-kafka",
+      "repo_name": "test/logiclens",
+      "question": "Where is Kafka configured?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": true,
+      "source": "Unit-test fixture",
+      "notes": "Correct answer is insufficient evidence.",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": false,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": true,
+      "unsupported_expected": true,
+      "unsupported_returned": true,
+      "unsupported_correct": true,
+      "hallucinated": false,
+      "observed_blocks": [],
+      "source_files": []
+    },
+    {
+      "id": "fixture-unsupported-codes-garbage",
+      "repo_name": "test/logiclens",
+      "question": "Where is the function zzzNonexistentSymbolXyzzy999 implemented?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": true,
+      "source": "Unit-test fixture",
+      "notes": "query_codes should abstain (no nodes, confidence 0) for nonsense token.",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": false,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": true,
+      "unsupported_expected": true,
+      "unsupported_returned": true,
+      "unsupported_correct": true,
+      "hallucinated": false,
+      "observed_blocks": [],
+      "source_files": []
+    },
+    {
+      "id": "fixture-codes-sessionguard-path",
+      "repo_name": "test/logiclens",
+      "question": "Which file path contains the sessionGuard function implementation?",
+      "expected_blocks": [],
+      "expected_files": [
+        "auth.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-codes-persist-session",
+      "repo_name": "test/logiclens",
+      "question": "Where is persistSession implemented as source code?",
+      "expected_blocks": [],
+      "expected_files": [
+        "db.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Identity UI"
+      ],
+      "source_files": [
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-codes-symbol-snippet",
+      "repo_name": "test/logiclens",
+      "question": "Which source code defines sessionGuard for authentication checks?",
+      "expected_blocks": [],
+      "expected_files": [
+        "auth.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-codes-router-wording",
+      "repo_name": "test/logiclens",
+      "question": "Show me the implementation snippet for sessionGuard using the codes search path.",
+      "expected_blocks": [],
+      "expected_files": [
+        "auth.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-codes-db-call-chain",
+      "repo_name": "test/logiclens",
+      "question": "Which file contains persistSession that references sessionGuard?",
+      "expected_blocks": [],
+      "expected_files": [
+        "db.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-project-session-keyword",
+      "repo_name": "test/logiclens",
+      "question": "Which project repository surfaces mention session handling in code?",
+      "expected_blocks": [],
+      "expected_files": [
+        "auth.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_projects",
+        "query_projects_with_codes"
+      ],
+      "unsupported": false,
+      "source": "Projects-tool regression",
+      "notes": "Repo+code wording may merge projects+codes bundles.",
+      "status": "active",
+      "partial_query_types": true,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI",
+        "Search Architecture"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-project-component-keyword",
+      "repo_name": "test/logiclens",
+      "question": "What components in this service relate to database persistence code?",
+      "expected_blocks": [],
+      "expected_files": [
+        "db.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_projects",
+        "query_projects_with_codes"
+      ],
+      "unsupported": false,
+      "source": "Projects-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": true,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI",
+        "Search Architecture"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-hybrid-project-codes-partial",
+      "repo_name": "test/logiclens",
+      "question": "What functions does the test/logiclens project expose in source?",
+      "expected_blocks": [],
+      "expected_files": [
+        "auth.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_projects",
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Hybrid precedence regression",
+      "notes": "Merged bundle accepts query_projects_with_codes vs separate tools.",
+      "status": "active",
+      "partial_query_types": true,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI",
+        "Search Architecture"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-ambiguous-auth-vs-db",
+      "repo_name": "test/logiclens",
+      "question": "Where is session-related persistence logic implemented?",
+      "expected_blocks": [
+        "Access Control",
+        "Data Persistence"
+      ],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": false,
+      "source": "Ambiguous multi-block",
+      "notes": "Either auth or db block may rank first.",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-ambiguous-two-files",
+      "repo_name": "test/logiclens",
+      "question": "Which files contain exported functions for sessions?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "expected_query_types": [],
+      "unsupported": false,
+      "source": "Ambiguous glob",
+      "notes": "Either auth.ts or db.ts should surface.",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-unsupported-abstention-redis",
+      "repo_name": "test/logiclens",
+      "question": "Where is Redis cluster failover configured?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": true,
+      "source": "Abstention corpus",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": false,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": true,
+      "unsupported_expected": true,
+      "unsupported_returned": true,
+      "unsupported_correct": true,
+      "hallucinated": false,
+      "observed_blocks": [],
+      "source_files": []
+    },
+    {
+      "id": "fixture-unsupported-abstention-grpc",
+      "repo_name": "test/logiclens",
+      "question": "Where is the gRPC/protobuf schema compiler invoked?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": true,
+      "source": "Abstention corpus",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": false,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": true,
+      "unsupported_expected": true,
+      "unsupported_returned": true,
+      "unsupported_correct": true,
+      "hallucinated": false,
+      "observed_blocks": [],
+      "source_files": []
+    },
+    {
+      "id": "fixture-unsupported-abstention-vault",
+      "repo_name": "test/logiclens",
+      "question": "Which Vault policy applies to production secrets rotation?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": true,
+      "source": "Abstention corpus",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": false,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": true,
+      "unsupported_expected": true,
+      "unsupported_returned": true,
+      "unsupported_correct": true,
+      "hallucinated": false,
+      "observed_blocks": [],
+      "source_files": []
+    },
+    {
+      "id": "fixture-codes-class-method-wording",
+      "repo_name": "test/logiclens",
+      "question": "Which TypeScript source exports the sessionGuard symbol?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "Rank order may prefer db.ts when query mentions TypeScript broadly.",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-codes-method-verb",
+      "repo_name": "test/logiclens",
+      "question": "Find the method body for persistSession in this repo.",
+      "expected_blocks": [],
+      "expected_files": [
+        "db.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes",
+        "query_projects_with_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "'repo' triggers hybrid merge with codes leg.",
+      "status": "active",
+      "partial_query_types": true,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Identity UI",
+        "Search Architecture"
+      ],
+      "source_files": [
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-block-auth-secondary",
+      "repo_name": "test/logiclens",
+      "question": "Where is authentication handled for requests?",
+      "expected_blocks": [
+        "Access Control"
+      ],
+      "expected_files": [
+        "auth.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": false,
+      "source": "Block routing regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control"
+      ],
+      "source_files": [
+        "auth.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-block-persistence-secondary",
+      "repo_name": "test/logiclens",
+      "question": "Where is database storage logic implemented?",
+      "expected_blocks": [],
+      "expected_files": [
+        "db.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Block routing regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-project-repo-name",
+      "repo_name": "test/logiclens",
+      "question": "Which repository contains db.ts as a component?",
+      "expected_blocks": [],
+      "expected_files": [
+        "db.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_projects",
+        "query_projects_with_codes"
+      ],
+      "unsupported": false,
+      "source": "Projects-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": true,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI",
+        "Search Architecture"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-codes-lowercase-query",
+      "repo_name": "test/logiclens",
+      "question": "Locate sessionguard implementation details.",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "Lowercase token match may rank db.ts first.",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-codes-persist-lowercase",
+      "repo_name": "test/logiclens",
+      "question": "Locate persistsession function body.",
+      "expected_blocks": [],
+      "expected_files": [
+        "db.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Identity UI"
+      ],
+      "source_files": [
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-unsupported-abstention-saml",
+      "repo_name": "test/logiclens",
+      "question": "Where is SAML metadata XML validated?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": true,
+      "source": "Abstention corpus",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": false,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": true,
+      "unsupported_expected": true,
+      "unsupported_returned": true,
+      "unsupported_correct": true,
+      "hallucinated": false,
+      "observed_blocks": [],
+      "source_files": []
+    },
+    {
+      "id": "fixture-access-session-keyword",
+      "repo_name": "test/logiclens",
+      "question": "Where are session tokens validated before persistence?",
+      "expected_blocks": [
+        "Access Control"
+      ],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": false,
+      "source": "Ambiguous block",
+      "notes": "May surface auth.ts primarily.",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control"
+      ],
+      "source_files": [
+        "auth.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-codes-explicit-function-word",
+      "repo_name": "test/logiclens",
+      "question": "Which function implements sessionGuard?",
+      "expected_blocks": [],
+      "expected_files": [
+        "auth.ts"
+      ],
+      "expected_file_globs": [],
+      "expected_query_types": [
+        "query_codes"
+      ],
+      "unsupported": false,
+      "source": "Codes-tool regression",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": true,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": null,
+      "unsupported_expected": false,
+      "unsupported_returned": false,
+      "unsupported_correct": false,
+      "hallucinated": false,
+      "observed_blocks": [
+        "Access Control",
+        "Identity UI"
+      ],
+      "source_files": [
+        "auth.ts",
+        "db.ts"
+      ],
+      "query_type_match": true
+    },
+    {
+      "id": "fixture-unsupported-abstention-spark",
+      "repo_name": "test/logiclens",
+      "question": "Where is the Spark job orchestrator configured?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": true,
+      "source": "Abstention corpus",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": false,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": true,
+      "unsupported_expected": true,
+      "unsupported_returned": true,
+      "unsupported_correct": true,
+      "hallucinated": false,
+      "observed_blocks": [],
+      "source_files": []
+    },
+    {
+      "id": "fixture-unsupported-abstention-opa",
+      "repo_name": "test/logiclens",
+      "question": "Which Open Policy Agent bundle enforces tenant isolation?",
+      "expected_blocks": [],
+      "expected_files": [],
+      "expected_file_globs": [],
+      "expected_query_types": [],
+      "unsupported": true,
+      "source": "Abstention corpus",
+      "notes": "",
+      "status": "active",
+      "partial_query_types": false,
+      "match": true,
+      "has_evidence": false,
+      "block_match": true,
+      "file_match": true,
+      "unsupported_match": true,
+      "unsupported_expected": true,
+      "unsupported_returned": true,
+      "unsupported_correct": true,
+      "hallucinated": false,
+      "observed_blocks": [],
+      "source_files": []
+    }
+  ]
+}

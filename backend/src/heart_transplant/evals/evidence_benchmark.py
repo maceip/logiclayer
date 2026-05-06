@@ -15,7 +15,13 @@ def load_evidence_questions(path: Path) -> list[dict[str, Any]]:
     return [row for row in data if isinstance(row, dict)]
 
 
-def run_evidence_benchmark(artifact_dir: Path, questions: list[dict[str, Any]], *, question_set_path: Path | None = None) -> dict[str, Any]:
+def run_evidence_benchmark(
+    artifact_dir: Path,
+    questions: list[dict[str, Any]],
+    *,
+    question_set_path: Path | None = None,
+    fail_on_hallucinations: bool = False,
+) -> dict[str, Any]:
     structural = read_json(Path(artifact_dir) / "structural-artifact.json")
     repo_name = str(structural.get("repo_name", ""))
     active_questions = [normalize_question(row) for row in questions if str(row.get("status", "active")) == "active"]
@@ -60,6 +66,7 @@ def run_evidence_benchmark(artifact_dir: Path, questions: list[dict[str, Any]], 
             "hallucination_count": hallucinations,
             "hallucination_rate": hallucinations / max(unsupported_questions, 1),
             "missing_evidence_count": missing_evidence,
+            "fail_on_hallucinations": fail_on_hallucinations,
         },
         "rows": rows,
     }
@@ -73,10 +80,12 @@ def normalize_question(row: dict[str, Any]) -> dict[str, Any]:
         "expected_blocks": [str(item) for item in row.get("expected_blocks", []) if str(item or "").strip()],
         "expected_files": [str(item) for item in row.get("expected_files", []) if str(item or "").strip()],
         "expected_file_globs": [str(item) for item in row.get("expected_file_globs", []) if str(item or "").strip()],
+        "expected_query_types": [str(item) for item in row.get("expected_query_types", []) if str(item or "").strip()],
         "unsupported": bool(row.get("unsupported", False)),
         "source": str(row.get("source") or ""),
         "notes": str(row.get("notes") or ""),
         "status": str(row.get("status") or "active"),
+        "partial_query_types": bool(row.get("partial_query_types", False)),
     }
 
 
@@ -112,15 +121,21 @@ def score_evidence_answer(question: dict[str, Any], bundle: EvidenceBundle, sema
     expected_blocks = set(question["expected_blocks"])
     expected_files = set(question["expected_files"])
     expected_globs = question["expected_file_globs"]
+    expected_qt = question.get("expected_query_types") or []
     block_match = not expected_blocks or bool(expected_blocks.intersection(observed_blocks))
     file_match = not expected_files and not expected_globs
     if expected_files:
         file_match = bool(expected_files.intersection(source_files))
     if expected_globs:
         file_match = file_match or any(fnmatch(path, pattern) for path in source_files for pattern in expected_globs)
+    query_type_match = not expected_qt or _query_type_matches(
+        bundle.query_type,
+        expected_qt,
+        bool(question.get("partial_query_types", False)),
+    )
     has_evidence = bool(bundle.source_nodes)
     return {
-        "match": bool(has_evidence and block_match and file_match),
+        "match": bool(has_evidence and block_match and file_match and query_type_match),
         "has_evidence": has_evidence,
         "block_match": block_match,
         "file_match": file_match,
@@ -131,7 +146,16 @@ def score_evidence_answer(question: dict[str, Any], bundle: EvidenceBundle, sema
         "hallucinated": False,
         "observed_blocks": observed_blocks,
         "source_files": source_files,
+        "query_type_match": query_type_match,
     }
+
+
+def _query_type_matches(observed: str, expected: list[str], partial: bool) -> bool:
+    if observed in set(expected):
+        return True
+    if partial and observed == "query_projects_with_codes":
+        return bool(set(expected).intersection({"query_codes", "query_projects"}))
+    return False
 
 
 def _semantic_blocks_by_node(artifact_dir: Path) -> dict[str, set[str]]:

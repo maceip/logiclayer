@@ -1,0 +1,161 @@
+{
+  "artifact_id": "test__logiclens",
+  "semantic_summaries": [
+    {
+      "node_id": "codefile:auth.ts",
+      "summary_type": "code_node",
+      "text": "file_surface auth.ts in auth.ts maps to Access Control with 0 import edge(s) and 1 sibling code node(s).",
+      "provenance": "heuristic_semantic_enrichment"
+    },
+    {
+      "node_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1",
+      "summary_type": "code_node",
+      "text": "function sessionGuard in auth.ts maps to Access Control with 0 import edge(s) and 1 sibling code node(s).",
+      "provenance": "heuristic_semantic_enrichment"
+    },
+    {
+      "node_id": "codefile:db.ts",
+      "summary_type": "code_node",
+      "text": "file_surface db.ts in db.ts maps to Search Architecture with 0 import edge(s) and 1 sibling code node(s).",
+      "provenance": "heuristic_semantic_enrichment"
+    },
+    {
+      "node_id": "repo://test/logiclens/db.ts#persistSession:function:1",
+      "summary_type": "code_node",
+      "text": "function persistSession in db.ts maps to Identity UI with 0 import edge(s) and 1 sibling code node(s).",
+      "provenance": "heuristic_semantic_enrichment"
+    },
+    {
+      "node_id": "project:test_logiclens",
+      "summary_type": "project",
+      "text": "Project logiclens represents repository test/logiclens. Its strongest observed responsibilities are Access Control, Search Architecture, Identity UI. The summary is derived from 4 code-node semantic summaries.",
+      "provenance": "heuristic_semantic_enrichment"
+    },
+    {
+      "node_id": "system:local",
+      "summary_type": "system",
+      "text": "System test/logiclens currently contains 1 project graph(s). It exposes cross-cutting architecture evidence through structural code nodes, semantic entities, project summaries, and action edges. Project logiclens represents repository test/logiclens. Its strongest observed responsibilities are Access Control, Search Architecture, Identity UI. The summary is derived from 4 code-node semantic summaries.",
+      "provenance": "heuristic_semantic_enrichment"
+    }
+  ],
+  "entities": [
+    {
+      "entity_id": "entity:91cf79c192d1968b",
+      "name": "auth",
+      "category": "Access Control",
+      "description": "auth is inferred from file_surface auth.ts in auth.ts, assigned to Access Control."
+    },
+    {
+      "entity_id": "entity:06942913ac96a129",
+      "name": "auth.ts",
+      "category": "Access Control",
+      "description": "auth.ts is inferred from file_surface auth.ts in auth.ts, assigned to Access Control."
+    },
+    {
+      "entity_id": "entity:b5325c9ea57a2758",
+      "name": "session Guard",
+      "category": "Access Control",
+      "description": "session Guard is inferred from function sessionGuard in auth.ts, assigned to Access Control."
+    },
+    {
+      "entity_id": "entity:9e2d7527fd7f1b9d",
+      "name": "Database client",
+      "category": "Identity UI",
+      "description": "Database client is inferred from function persistSession in db.ts, assigned to Identity UI."
+    },
+    {
+      "entity_id": "entity:b6f1d7f63958e02b",
+      "name": "db",
+      "category": "Identity UI",
+      "description": "db is inferred from function persistSession in db.ts, assigned to Identity UI."
+    },
+    {
+      "entity_id": "entity:e32299fcd9a5f1d3",
+      "name": "persist Session",
+      "category": "Identity UI",
+      "description": "persist Session is inferred from function persistSession in db.ts, assigned to Identity UI."
+    },
+    {
+      "entity_id": "entity:155f84a9c7019207",
+      "name": "Database client",
+      "category": "Search Architecture",
+      "description": "Database client is inferred from file_surface db.ts in db.ts, assigned to Search Architecture."
+    },
+    {
+      "entity_id": "entity:5c53dba34a5bf1a8",
+      "name": "db",
+      "category": "Search Architecture",
+      "description": "db is inferred from file_surface db.ts in db.ts, assigned to Search Architecture."
+    },
+    {
+      "entity_id": "entity:e7ac56c8b9705ae6",
+      "name": "db.ts",
+      "category": "Search Architecture",
+      "description": "db.ts is inferred from file_surface db.ts in db.ts, assigned to Search Architecture."
+    }
+  ],
+  "actions": [
+    {
+      "source_code_node_id": "codefile:auth.ts",
+      "entity_id": "entity:91cf79c192d1968b",
+      "action": "AUTHORIZE",
+      "confidence": 0.89,
+      "reasoning": "heuristic: authorize signal from node name/path/content"
+    },
+    {
+      "source_code_node_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1",
+      "entity_id": "entity:91cf79c192d1968b",
+      "action": "AUTHORIZE",
+      "confidence": 0.938,
+      "reasoning": "heuristic: authorize signal from node name/path/content"
+    },
+    {
+      "source_code_node_id": "codefile:db.ts",
+      "entity_id": "entity:5c53dba34a5bf1a8",
+      "action": "AUTHORIZE",
+      "confidence": 0.532,
+      "reasoning": "heuristic: authorize signal from node name/path/content"
+    },
+    {
+      "source_code_node_id": "repo://test/logiclens/db.ts#persistSession:function:1",
+      "entity_id": "entity:b6f1d7f63958e02b",
+      "action": "AUTHORIZE",
+      "confidence": 0.1,
+      "reasoning": "heuristic: authorize signal from node name/path/content"
+    }
+  ],
+  "block_assignments": [
+    {
+      "node_id": "codefile:auth.ts",
+      "primary_block": "Access Control",
+      "secondary_blocks": [],
+      "confidence": 0.89,
+      "reasoning": "heuristic: weighted block signals: access-control path, auth/session token",
+      "supporting_neighbors": []
+    },
+    {
+      "node_id": "repo://test/logiclens/auth.ts#sessionGuard:function:1",
+      "primary_block": "Access Control",
+      "secondary_blocks": [],
+      "confidence": 0.938,
+      "reasoning": "heuristic: weighted block signals: access-control path, auth/session token",
+      "supporting_neighbors": []
+    },
+    {
+      "node_id": "codefile:db.ts",
+      "primary_block": "Search Architecture",
+      "secondary_blocks": [],
+      "confidence": 0.532,
+      "reasoning": "heuristic: weighted block signals: file-level architecture surface",
+      "supporting_neighbors": []
+    },
+    {
+      "node_id": "repo://test/logiclens/db.ts#persistSession:function:1",
+      "primary_block": "Identity UI",
+      "secondary_blocks": [],
+      "confidence": 0.1,
+      "reasoning": "heuristic: weighted block signals: no matching deterministic signals",
+      "supporting_neighbors": []
+    }
+  ]
+}
