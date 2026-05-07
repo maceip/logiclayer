@@ -122,6 +122,7 @@ def run_hosted_analysis(repo: str, *, limits: BetaLimits | None = None, progress
                 "name": node.name,
                 "kind": str(node.kind.value if hasattr(node.kind, "value") else node.kind),
                 "language": node.language,
+                "range": node.range.model_dump(mode="json"),
                 "block": assignment.primary_block,
                 "confidence": assignment.confidence,
                 "signal": assignment.reasoning,

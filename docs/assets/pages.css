@@ -468,6 +468,87 @@ button:focus-visible,
   gap: 12px;
 }
 
+.system-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.map-node,
+.map-edge,
+.qa-board article,
+.workflow-rail div {
+  border: 1px solid var(--line);
+  background: hsl(var(--card));
+}
+
+.map-node {
+  min-height: 154px;
+  padding: 16px;
+  display: grid;
+  align-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.map-node::after {
+  content: "";
+  position: absolute;
+  inset: auto -20px -34px auto;
+  width: 112px;
+  height: 112px;
+  border: 1px solid hsl(var(--primary) / 0.3);
+  transform: rotate(12deg);
+}
+
+.map-node span,
+.qa-board span {
+  color: var(--muted-text);
+  font-size: var(--text-label);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.map-node strong {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 1.35rem;
+}
+
+.map-node small {
+  color: var(--muted-text);
+  line-height: 1.4;
+}
+
+.map-edge {
+  min-width: 92px;
+  padding: 8px 10px;
+  color: var(--muted-text);
+  text-align: center;
+  text-transform: uppercase;
+  font-size: var(--text-label);
+  position: relative;
+}
+
+.map-edge::before,
+.map-edge::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.map-edge::before {
+  left: -18px;
+}
+
+.map-edge::after {
+  right: -18px;
+}
+
 .system-card,
 .system-why {
   border: 1px solid var(--line);
@@ -498,6 +579,65 @@ button:focus-visible,
   align-items: center;
   gap: 14px;
   padding: 16px;
+}
+
+.workflow-rail,
+.qa-board {
+  display: grid;
+  gap: 12px;
+}
+
+.workflow-rail {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  counter-reset: workflow;
+}
+
+.workflow-rail div {
+  min-height: 96px;
+  padding: 14px;
+  position: relative;
+}
+
+.workflow-rail div::before {
+  counter-increment: workflow;
+  content: "0" counter(workflow);
+  display: block;
+  margin-bottom: 14px;
+  color: var(--muted-text);
+  font-size: var(--text-label);
+  font-weight: 700;
+}
+
+.workflow-rail strong,
+.workflow-rail span {
+  display: block;
+}
+
+.workflow-rail span {
+  margin-top: 6px;
+  color: var(--muted-text);
+  line-height: 1.35;
+}
+
+.qa-board {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.qa-board article {
+  min-height: 148px;
+  padding: 16px;
+}
+
+.qa-board strong {
+  display: block;
+  margin: 10px 0 8px;
+  font-family: var(--font-sans);
+  font-size: 1.1rem;
+}
+
+.qa-board p {
+  color: var(--muted-text);
+  line-height: 1.45;
 }
 
 .case-grid {
@@ -598,6 +738,15 @@ button:focus-visible,
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: 0.86rem;
+}
+
+.answer-card li span em {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted-text);
+  font-style: normal;
+  font-size: var(--text-label);
+  text-transform: uppercase;
 }
 
 .answer-card li small {
@@ -747,6 +896,9 @@ td:first-child {
   .hero-band,
   .proof-grid,
   .system-showcase,
+  .system-map,
+  .workflow-rail,
+  .qa-board,
   .system-why,
   .runtime-panel,
   .mini-stats,

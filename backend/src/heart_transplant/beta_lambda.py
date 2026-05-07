@@ -244,34 +244,47 @@ def build_multi_repo_insights(per_repo: list[dict[str, Any]], surfaces: list[dic
         role = ", ".join(block for block, _ in top_blocks) or "source surfaces"
         repo_roles.append({"repo": report["repo"], "role": role, "nodes": report.get("summary", {}).get("node_count", 0)})
 
-    boundary_blocks = {"Network Edge", "Connectivity Layer", "Data Persistence", "Background Processing", "Access Control"}
+    boundary_blocks = {"Network Edge", "Connectivity Layer", "Data Persistence", "Background Processing", "Access Control", "Interaction Design"}
     boundary_samples = [surface for surface in surfaces if surface.get("block") in boundary_blocks][:8]
     dominant = [{"block": block, "count": count} for block, count in sorted(block_counts.items(), key=lambda item: (-item[1], item[0]))[:5]]
     languages = sorted({lang for report in per_repo for lang in report.get("summary", {}).get("parser_backends", [])})
+    entity_terms = ("user", "order", "session", "checkout", "payment", "upload", "cart", "account", "auth", "token")
+    entity_samples = [
+        surface
+        for surface in surfaces
+        if any(term in f"{surface.get('path', '')} {surface.get('name', '')} {surface.get('signal', '')}".lower() for term in entity_terms)
+    ][:8]
+    high_confidence = surfaces[:8]
 
     return [
         {
-            "title": "What system is this?",
+            "title": "Project understanding: what repos exist?",
             "answer": f"LogicLens analyzed {len(per_repo)} repositories as one system. The strongest cross-repo signal is a {', '.join(languages[:6]) or 'multi-language'} stack with complementary project roles.",
             "samples": [{"repo": item["repo"], "path": item["repo"], "block": item["role"], "confidence": min(0.95, 0.65 + int(item["nodes"]) / 20000)} for item in repo_roles],
             "empty_state": "No per-repo roles available.",
         },
         {
-            "title": "Where do repos meet?",
-            "answer": "Start with network, connectivity, persistence, background-work, and access-control surfaces. Those are the most likely integration seams across repositories.",
+            "title": "Entity/workflow understanding",
+            "answer": "User, Order, Session, Checkout, Payment, Upload, and Cart signals are pulled out as workflow anchors. These are the best places to start tracing business behavior across repos.",
+            "samples": entity_samples,
+            "empty_state": "No obvious entity or workflow surfaces found in the bounded result window.",
+        },
+        {
+            "title": "Graph reasoning: where do repos meet?",
+            "answer": "Start with network, connectivity, persistence, background-work, interaction, and access-control surfaces. Those are the most likely integration seams and blast-radius boundaries across repositories.",
             "samples": boundary_samples,
             "empty_state": "No likely integration seams found in the bounded result window.",
         },
         {
-            "title": "What architecture blocks dominate?",
+            "title": "Architecture Q&A: what dominates?",
             "answer": "The aggregate block distribution shows the system-level shape rather than one repository's local implementation details.",
             "dominant_blocks": dominant,
             "empty_state": "No aggregate block distribution available.",
         },
         {
-            "title": "What should a developer inspect first?",
-            "answer": "Inspect the highest-confidence surfaces in each repo, then follow shared terms and boundary blocks across repos before changing integration behavior.",
-            "samples": surfaces[:8],
+            "title": "Code-grounded retrieval: cite the evidence",
+            "answer": "Relevant files, functions, classes, and source ranges are returned as evidence. A useful answer should cite these paths before making an architecture claim.",
+            "samples": high_confidence,
             "empty_state": "No evidence surfaces returned.",
         },
     ]

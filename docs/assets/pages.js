@@ -57,10 +57,10 @@ const PATH_SIGNALS = [
 
 const SOURCE_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|prisma|java|rs|cpp|cc|cxx|h|hpp|cs|rb|php|swift|kt)$/i;
 const SKIP_PATHS = /(^|\/)(node_modules|\.git|dist|build|target|vendor|coverage|\.next|\.venv|\.venv-win|__pycache__)\//i;
-const FEATURED_SYSTEM = ["pallets/flask", "pallets/werkzeug", "pallets/jinja"];
+const FEATURED_SYSTEM = ["vercel/commerce", "nextauthjs/next-auth", "stripe/stripe-node"];
 const FEATURED_CASES = [
-  { title: "Pallets web stack", repos: FEATURED_SYSTEM, note: "Flask + WSGI + templates" },
-  { title: "Python packaging", repos: ["pypa/pip", "pypa/packaging"], note: "Installer + version semantics" },
+  { title: "Commerce checkout stack", repos: FEATURED_SYSTEM, note: "Storefront + auth + payments" },
+  { title: "Python web app stack", repos: ["pallets/flask", "pallets/werkzeug", "pallets/jinja"], note: "App + WSGI + templates" },
   { title: "Testing plugin stack", repos: ["pytest-dev/pytest", "pytest-dev/pluggy"], note: "Runner + plugin machinery" },
 ];
 const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
@@ -146,7 +146,7 @@ async function ingestRepos(repos) {
     }
   } catch (error) {
     setStatus(`Analysis stopped: ${error.message}`, true);
-    renderFailureBadge(repo, error);
+    renderFailureBadge(state.currentRepo, error);
   } finally {
     state.isAnalyzing = false;
     button.classList.remove("is-loading");
@@ -218,6 +218,7 @@ function normalizeHostedSurfaces(surfaces) {
     repo: surface.repo || "",
     path: surface.path || surface.file_path || surface.name || "unknown",
     name: surface.name || "",
+    range: surface.range || null,
     block: BLOCKS.includes(surface.block) ? surface.block : surface.block || "Search Architecture",
     confidence: clamp(Number(surface.confidence || 0.5), 0, 1),
     signal: surface.signal || "backend evidence",
@@ -336,7 +337,7 @@ function renderRepoResults(result) {
     .slice(0, 80)
     .map(
       (surface) =>
-        `<tr><td><strong>${escapeHtml(surface.repo || state.currentRepo)}</strong><br />${escapeHtml(surface.path)}</td><td>${escapeHtml(surface.block)}</td><td>${Math.round(surface.confidence * 100)}%</td><td>${escapeHtml(surface.signal)}</td></tr>`,
+        `<tr><td><strong>${escapeHtml(surface.repo || state.currentRepo)}</strong><br />${escapeHtml(surface.path)}${formatRange(surface.range) ? `<br /><small>${escapeHtml(formatRange(surface.range))}</small>` : ""}</td><td>${escapeHtml(surface.block)}</td><td>${Math.round(surface.confidence * 100)}%</td><td>${escapeHtml(surface.signal)}</td></tr>`,
     )
     .join("");
   renderBlockTree();
@@ -382,7 +383,8 @@ function renderOperatorAnswers(result) {
 
 function renderInsightSample(sample) {
   const repo = sample.repo ? `${sample.repo} / ` : "";
-  return `<li><span>${escapeHtml(repo)}${escapeHtml(sample.path || sample.file_path || sample.name)}</span><small>${escapeHtml(sample.block || "")} / ${Math.round(Number(sample.confidence || 0) * 100)}%</small></li>`;
+  const range = formatRange(sample.range);
+  return `<li><span>${escapeHtml(repo)}${escapeHtml(sample.path || sample.file_path || sample.name)}${range ? `<em>${escapeHtml(range)}</em>` : ""}</span><small>${escapeHtml(sample.block || "")} / ${Math.round(Number(sample.confidence || 0) * 100)}%</small></li>`;
 }
 
 function buildPreviewInsights() {
@@ -910,6 +912,14 @@ function languageFromPath(path) {
       prisma: "Prisma",
     }[ext] || ext.toUpperCase()
   );
+}
+
+function formatRange(range) {
+  if (!range) return "";
+  const start = range.start_line ?? range.startLine;
+  const end = range.end_line ?? range.endLine;
+  if (!start && !end) return "";
+  return start === end || !end ? `line ${start}` : `lines ${start}-${end}`;
 }
 
 function compactNumber(value) {
