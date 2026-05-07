@@ -122,18 +122,20 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:  # no
 
         if method == "POST" and (path.endswith("/api/analyze") or path == "/analyze"):
             body = _json_body(event)
-            repo = normalize_public_github_repo(str(body.get("repo") or ""))
-            decision = RATE_LIMITER.allow(identity=_identity(headers, origin, repo=repo), cost=_analysis_cost(repo))
+            repos = _requested_repos(body)
+            identity_repo_key = ",".join(repos)
+            decision = RATE_LIMITER.allow(identity=_identity(headers, origin, repo=identity_repo_key), cost=_analysis_cost(repos))
             if not decision.allowed:
                 return _rate_limited(decision, allowed_origin)
 
             _configure_serverless_runtime()
-            result = run_hosted_analysis(repo, limits=load_limits())
+            result = run_multi_repo_analysis(repos) if len(repos) > 1 else run_hosted_analysis(repos[0], limits=load_limits())
+            repo_label = result["repo"]
             return _response(
                 HTTPStatus.OK,
                 {
-                    "job_id": f"lambda-{hashlib.sha256((repo + result['finished_at']).encode()).hexdigest()[:16]}",
-                    "repo": repo,
+                    "job_id": f"lambda-{hashlib.sha256((repo_label + result['finished_at']).encode()).hexdigest()[:16]}",
+                    "repo": repo_label,
                     "status": "succeeded",
                     "stage": "done",
                     "message": "Analysis complete.",
@@ -168,6 +170,122 @@ def _configure_serverless_runtime() -> None:
     os.environ.setdefault("HEART_TRANSPLANT_BETA_MAX_RETURNED_SURFACES", "180")
 
 
+def _requested_repos(body: dict[str, Any]) -> list[str]:
+    if "repos" in body:
+        raw_repos = body.get("repos")
+        if not isinstance(raw_repos, list):
+            raise ValueError("repos must be an array of public GitHub repositories.")
+        repos = [normalize_public_github_repo(str(item)) for item in raw_repos if str(item or "").strip()]
+        repos = list(dict.fromkeys(repos))
+        if not 2 <= len(repos) <= 5:
+            raise ValueError("Multi-repo analysis requires between 2 and 5 unique public GitHub repositories.")
+        return repos
+    return [normalize_public_github_repo(str(body.get("repo") or ""))]
+
+
+def run_multi_repo_analysis(repos: list[str]) -> dict[str, Any]:
+    started = datetime.now(UTC)
+    per_repo = [run_hosted_analysis(repo, limits=load_limits()) for repo in repos]
+    finished = datetime.now(UTC)
+    repo_label = " + ".join(repos)
+    surfaces: list[dict[str, Any]] = []
+    block_counts: dict[str, int] = {}
+    parser_backends: set[str] = set()
+    node_count = 0
+    edge_count = 0
+    file_count = 0
+
+    for report in per_repo:
+        summary = report.get("summary", {})
+        node_count += int(summary.get("node_count") or 0)
+        edge_count += int(summary.get("edge_count") or 0)
+        file_count += int(summary.get("file_count") or 0)
+        parser_backends.update(str(item) for item in summary.get("parser_backends", []))
+        for block, count in (summary.get("block_counts") or {}).items():
+            block_counts[str(block)] = block_counts.get(str(block), 0) + int(count)
+        for surface in report.get("surfaces", []):
+            surfaces.append({**surface, "repo": report["repo"]})
+
+    surfaces.sort(key=lambda item: (-float(item.get("confidence", 0)), str(item.get("repo", "")), str(item.get("path", ""))))
+    return {
+        "repo": repo_label,
+        "repos": [report["repo"] for report in per_repo],
+        "started_at": started.isoformat(),
+        "finished_at": finished.isoformat(),
+        "duration_seconds": round((finished - started).total_seconds(), 3),
+        "summary": {
+            "node_count": node_count,
+            "edge_count": edge_count,
+            "file_count": file_count,
+            "repo_count": len(per_repo),
+            "parser_backends": sorted(parser_backends),
+            "block_counts": dict(sorted(block_counts.items(), key=lambda item: (-item[1], item[0]))),
+            "graph_integrity": {"overall_status": _aggregate_integrity(per_repo)},
+            "manifest": {"required_artifacts_present": all(bool(r.get("summary", {}).get("manifest", {}).get("required_artifacts_present")) for r in per_repo)},
+        },
+        "repo_reports": per_repo,
+        "insights": build_multi_repo_insights(per_repo, surfaces, block_counts),
+        "runtime_capabilities": {
+            "repo_source": "public_github_zipball_multi_repo",
+            "structural_ingest": "python_tree_sitter_language_pack",
+            "classifier": "deterministic_heuristic_no_openai",
+            "system_graph": "aggregate_multi_repo_receipt",
+        },
+        "warnings": [warning for report in per_repo for warning in report.get("warnings", []) if warning],
+        "surfaces": surfaces[: load_limits().max_returned_surfaces],
+    }
+
+
+def build_multi_repo_insights(per_repo: list[dict[str, Any]], surfaces: list[dict[str, Any]], block_counts: dict[str, int]) -> list[dict[str, Any]]:
+    repo_roles = []
+    for report in per_repo:
+        blocks = report.get("summary", {}).get("block_counts", {})
+        top_blocks = sorted(blocks.items(), key=lambda item: (-int(item[1]), item[0]))[:3]
+        role = ", ".join(block for block, _ in top_blocks) or "source surfaces"
+        repo_roles.append({"repo": report["repo"], "role": role, "nodes": report.get("summary", {}).get("node_count", 0)})
+
+    boundary_blocks = {"Network Edge", "Connectivity Layer", "Data Persistence", "Background Processing", "Access Control"}
+    boundary_samples = [surface for surface in surfaces if surface.get("block") in boundary_blocks][:8]
+    dominant = [{"block": block, "count": count} for block, count in sorted(block_counts.items(), key=lambda item: (-item[1], item[0]))[:5]]
+    languages = sorted({lang for report in per_repo for lang in report.get("summary", {}).get("parser_backends", [])})
+
+    return [
+        {
+            "title": "What system is this?",
+            "answer": f"LogicLens analyzed {len(per_repo)} repositories as one system. The strongest cross-repo signal is a {', '.join(languages[:6]) or 'multi-language'} stack with complementary project roles.",
+            "samples": [{"repo": item["repo"], "path": item["repo"], "block": item["role"], "confidence": min(0.95, 0.65 + int(item["nodes"]) / 20000)} for item in repo_roles],
+            "empty_state": "No per-repo roles available.",
+        },
+        {
+            "title": "Where do repos meet?",
+            "answer": "Start with network, connectivity, persistence, background-work, and access-control surfaces. Those are the most likely integration seams across repositories.",
+            "samples": boundary_samples,
+            "empty_state": "No likely integration seams found in the bounded result window.",
+        },
+        {
+            "title": "What architecture blocks dominate?",
+            "answer": "The aggregate block distribution shows the system-level shape rather than one repository's local implementation details.",
+            "dominant_blocks": dominant,
+            "empty_state": "No aggregate block distribution available.",
+        },
+        {
+            "title": "What should a developer inspect first?",
+            "answer": "Inspect the highest-confidence surfaces in each repo, then follow shared terms and boundary blocks across repos before changing integration behavior.",
+            "samples": surfaces[:8],
+            "empty_state": "No evidence surfaces returned.",
+        },
+    ]
+
+
+def _aggregate_integrity(reports: list[dict[str, Any]]) -> str:
+    statuses = [str(report.get("summary", {}).get("graph_integrity", {}).get("overall_status", "unknown")) for report in reports]
+    if all(status == "pass" for status in statuses):
+        return "pass"
+    if any(status == "fail" for status in statuses):
+        return "partial"
+    return "unknown"
+
+
 def _headers(event: dict[str, Any]) -> dict[str, str]:
     return {str(k).lower(): str(v) for k, v in (event.get("headers") or {}).items() if v is not None}
 
@@ -185,10 +303,12 @@ def _identity(headers: dict[str, str], origin: str, *, repo: str = "") -> str:
     return "logiclens#" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _analysis_cost(repo: str) -> float:
-    owner, name = repo.split("/", 1)
-    # Slightly higher cost for large-looking namespace/repo names and repeatable public repos.
-    return min(9.0, 5.0 + (len(owner) + len(name)) / 80)
+def _analysis_cost(repos: list[str]) -> float:
+    cost = 0.0
+    for repo in repos:
+        owner, name = repo.split("/", 1)
+        cost += 5.0 + (len(owner) + len(name)) / 80
+    return min(30.0, cost)
 
 
 def _json_body(event: dict[str, Any]) -> dict[str, Any]:

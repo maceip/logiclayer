@@ -77,6 +77,7 @@ code {
 
 .hero-band,
 .proof-band,
+.system-example-band,
 .analyzer-band,
 .badge-band,
 .case-band,
@@ -300,6 +301,7 @@ button:focus-visible,
 }
 
 .proof-band,
+.system-example-band,
 .analyzer-band,
 .badge-band,
 .case-band,
@@ -362,6 +364,24 @@ button:focus-visible,
 
 .repo-form {
   display: grid;
+  gap: 10px;
+}
+
+.repo-form-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-text);
+}
+
+.repo-form-head label,
+.repo-form-head span {
+  display: block;
+}
+
+.repo-picker {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -440,6 +460,44 @@ button:focus-visible,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.system-showcase {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.system-card,
+.system-why {
+  border: 1px solid var(--line);
+  background: hsl(var(--card));
+}
+
+.system-card {
+  min-height: 142px;
+  padding: 16px;
+}
+
+.system-card strong,
+.system-why strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1rem;
+}
+
+.system-card p,
+.system-why p {
+  color: var(--muted-text);
+  line-height: 1.5;
+}
+
+.system-why {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
 }
 
 .case-grid {
@@ -688,11 +746,14 @@ td:first-child {
 @media (max-width: 900px) {
   .hero-band,
   .proof-grid,
+  .system-showcase,
+  .system-why,
   .runtime-panel,
   .mini-stats,
   .badge-layout,
   .answer-grid,
-  .results-layout {
+  .results-layout,
+  .repo-picker {
     grid-template-columns: 1fr;
   }
 
@@ -729,6 +790,8 @@ td:first-child {
   }
 
   .input-row button,
+  .repo-form > button,
+  .system-why button,
   .badge-actions button {
     width: 100%;
   }

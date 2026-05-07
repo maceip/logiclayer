@@ -57,12 +57,18 @@ const PATH_SIGNALS = [
 
 const SOURCE_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|prisma|java|rs|cpp|cc|cxx|h|hpp|cs|rb|php|swift|kt)$/i;
 const SKIP_PATHS = /(^|\/)(node_modules|\.git|dist|build|target|vendor|coverage|\.next|\.venv|\.venv-win|__pycache__)\//i;
-const FEATURED_CASES = ["openai/codex", "denoland/deno", "go-gitea/gitea", "zed-industries/zed", "immich-app/immich", "apache/hadoop"];
+const FEATURED_SYSTEM = ["pallets/flask", "pallets/werkzeug", "pallets/jinja"];
+const FEATURED_CASES = [
+  { title: "Pallets web stack", repos: FEATURED_SYSTEM, note: "Flask + WSGI + templates" },
+  { title: "Python packaging", repos: ["pypa/pip", "pypa/packaging"], note: "Installer + version semantics" },
+  { title: "Testing plugin stack", repos: ["pytest-dev/pytest", "pytest-dev/pluggy"], note: "Runner + plugin machinery" },
+];
 const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 const LOGICLENS_API_BASE_URL = (window.LOGICLENS_API_BASE_URL || "").replace(/\/+$/, "");
 
 const state = {
-  currentRepo: "openai/codex",
+  currentRepo: FEATURED_SYSTEM.join(" + "),
+  currentRepos: [...FEATURED_SYSTEM],
   surfaces: [],
   reference: null,
   backendAvailable: false,
@@ -77,14 +83,19 @@ const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", async () => {
   $("repo-form").addEventListener("submit", onRepoSubmit);
+  $("load-featured-system").addEventListener("click", () => {
+    setRepoInputs(FEATURED_SYSTEM);
+    ingestRepos(FEATURED_SYSTEM);
+  });
   $("badge-copy").addEventListener("click", copyBadgeMarkdown);
   $("badge-download").addEventListener("click", downloadBadgeSvg);
 
   const params = new URLSearchParams(window.location.search);
-  const initialRepo = normalizeRepo(params.get("repo") || $("repo-input").value);
-  if (initialRepo) {
-    state.currentRepo = initialRepo;
-    $("repo-input").value = initialRepo;
+  const initialRepos = normalizeRepoList((params.get("repos") || params.get("repo") || "").split(",").filter(Boolean));
+  if (initialRepos.length) {
+    state.currentRepos = initialRepos;
+    state.currentRepo = initialRepos.join(" + ");
+    setRepoInputs(initialRepos);
   }
 
   renderCaseBoard();
@@ -93,38 +104,43 @@ document.addEventListener("DOMContentLoaded", async () => {
   startHeartbeat();
   await Promise.allSettled([loadReferenceMetrics(), detectBackend()]);
 
-  if (params.get("autorun") === "1" && initialRepo) {
-    ingestRepo(initialRepo);
+  if (params.get("autorun") === "1" && state.currentRepos.length >= 2) {
+    ingestRepos(state.currentRepos);
   }
 });
 
 async function onRepoSubmit(event) {
   event.preventDefault();
-  const repo = normalizeRepo($("repo-input").value);
-  if (!repo) {
-    setStatus("Enter a root GitHub URL or owner/name, for example openai/codex.", true);
+  const repos = getSelectedRepos();
+  if (repos.length < 2 || repos.length > 5) {
+    setStatus("Enter between 2 and 5 unique root GitHub repositories.", true);
     return;
   }
-  $("repo-input").value = repo;
-  await ingestRepo(repo);
+  setRepoInputs(repos);
+  await ingestRepos(repos);
 }
 
 async function ingestRepo(repo) {
+  return ingestRepos([repo]);
+}
+
+async function ingestRepos(repos) {
   if (state.isAnalyzing) {
-    setStatus("Analysis is already running. Please wait for this repository to finish.");
+    setStatus("Analysis is already running. Please wait for this system to finish.");
     return;
   }
-  state.currentRepo = repo;
+  state.currentRepos = repos;
+  state.currentRepo = repos.join(" + ");
   state.isAnalyzing = true;
   const button = document.querySelector("#repo-form button[type='submit']");
   button.classList.add("is-loading");
   button.disabled = true;
   button.textContent = "Analyzing";
-  setStatus(`Starting LogicLens analysis for ${repo}...`);
+  setStatus(`Starting LogicLens system analysis for ${repos.join(", ")}...`);
 
   try {
     if (state.backendAvailable) {
-      await ingestRepoHosted(repo);
+      await ingestRepoHosted(repos);
     } else {
       throw new Error("The real hosted analyzer is not available. Browser-only preview mode is disabled for this demo.");
     }
@@ -135,7 +151,7 @@ async function ingestRepo(repo) {
     state.isAnalyzing = false;
     button.classList.remove("is-loading");
     button.disabled = false;
-    button.textContent = "Analyze repo";
+    button.textContent = "Analyze system";
   }
 }
 
@@ -152,34 +168,38 @@ async function detectBackend() {
   }
 }
 
-async function ingestRepoHosted(repo) {
-  setStatus(`Submitting hosted backend job for ${repo}.`);
+async function ingestRepoHosted(repos) {
+  const repoLabel = repos.join(" + ");
+  setStatus(`Submitting hosted backend job for ${repoLabel}.`);
   const response = await fetch(apiUrl("/api/analyze"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo }),
+    body: JSON.stringify(repos.length > 1 ? { repos } : { repo: repos[0] }),
   });
   const job = await response.json();
   if (!response.ok) throw new Error(job.error || `API returned ${response.status}`);
 
   if (job.status === "succeeded" && job.result) {
-    handleCompletedHostedResult(repo, job.result);
+    handleCompletedHostedResult(repoLabel, job.result);
     return;
   }
 
   setStatus(`Hosted job ${job.job_id} queued for ${repo}.`);
   const completed = await pollJob(job.job_id);
   if (completed.status !== "succeeded") throw new Error(completed.error || "Hosted analysis failed.");
-  handleCompletedHostedResult(repo, completed.result);
+  handleCompletedHostedResult(repoLabel, completed.result);
 }
 
 function handleCompletedHostedResult(repo, result) {
   state.latestReceipt = result;
+  state.currentRepos = result.repos || state.currentRepos;
+  state.currentRepo = result.repo || repo;
   state.surfaces = normalizeHostedSurfaces(result.surfaces || []);
   renderRepoResults(result);
   renderRuntimeReceipt(result);
-  updateBadge(buildBadgeData({ repo, mode: "hosted", surfaces: state.surfaces, result }));
-  setStatus(`Analysis complete for ${repo}: ${formatNumber(result.summary.node_count)} nodes and ${formatNumber(result.summary.edge_count)} edges.`);
+  updateBadge(buildBadgeData({ repo: state.currentRepo, repos: state.currentRepos, mode: "hosted", surfaces: state.surfaces, result }));
+  const repoCount = result.summary.repo_count || state.currentRepos.length || 1;
+  setStatus(`Analysis complete for ${repoCount} repos: ${formatNumber(result.summary.node_count)} nodes and ${formatNumber(result.summary.edge_count)} edges.`);
 }
 
 async function pollJob(jobId) {
@@ -195,6 +215,7 @@ async function pollJob(jobId) {
 
 function normalizeHostedSurfaces(surfaces) {
   return surfaces.map((surface) => ({
+    repo: surface.repo || "",
     path: surface.path || surface.file_path || surface.name || "unknown",
     name: surface.name || "",
     block: BLOCKS.includes(surface.block) ? surface.block : surface.block || "Search Architecture",
@@ -315,7 +336,7 @@ function renderRepoResults(result) {
     .slice(0, 80)
     .map(
       (surface) =>
-        `<tr><td>${escapeHtml(surface.path)}</td><td>${escapeHtml(surface.block)}</td><td>${Math.round(surface.confidence * 100)}%</td><td>${escapeHtml(surface.signal)}</td></tr>`,
+        `<tr><td><strong>${escapeHtml(surface.repo || state.currentRepo)}</strong><br />${escapeHtml(surface.path)}</td><td>${escapeHtml(surface.block)}</td><td>${Math.round(surface.confidence * 100)}%</td><td>${escapeHtml(surface.signal)}</td></tr>`,
     )
     .join("");
   renderBlockTree();
@@ -332,9 +353,9 @@ function renderEmptyResults() {
       <strong>Why LogicLens?</strong>
       <p>The paper's core idea is graph-backed software understanding. This implementation exposes that idea through practical repo analysis.</p>
     </article>`;
-  $("block-list").innerHTML = `<div class="block-pill"><strong>Waiting for analysis</strong><span>Submit a public GitHub repository.</span></div>`;
-  $("surface-table").innerHTML = `<tr><td colspan="4">No repository analyzed yet.</td></tr>`;
-  $("block-tree").innerHTML = `<div class="empty-card">No repository tree yet.</div>`;
+  $("block-list").innerHTML = `<div class="block-pill"><strong>Waiting for analysis</strong><span>Submit 2-5 public GitHub repositories.</span></div>`;
+  $("surface-table").innerHTML = `<tr><td colspan="4">No system analyzed yet.</td></tr>`;
+  $("block-tree").innerHTML = `<div class="empty-card">No system tree yet.</div>`;
 }
 
 function renderOperatorAnswers(result) {
@@ -360,7 +381,8 @@ function renderOperatorAnswers(result) {
 }
 
 function renderInsightSample(sample) {
-  return `<li><span>${escapeHtml(sample.path || sample.file_path || sample.name)}</span><small>${escapeHtml(sample.block || "")} / ${Math.round(Number(sample.confidence || 0) * 100)}%</small></li>`;
+  const repo = sample.repo ? `${sample.repo} / ` : "";
+  return `<li><span>${escapeHtml(repo)}${escapeHtml(sample.path || sample.file_path || sample.name)}</span><small>${escapeHtml(sample.block || "")} / ${Math.round(Number(sample.confidence || 0) * 100)}%</small></li>`;
 }
 
 function buildPreviewInsights() {
@@ -404,7 +426,9 @@ function renderRuntimeReceipt(result, preview = null) {
     const manifest = result.summary?.manifest?.required_artifacts_present ? "manifest complete" : "manifest incomplete";
     const artifactId = String(result.artifact_dir || "").split(/[\\/]/).filter(Boolean).pop() || "artifact saved";
     $("runtime-mode").textContent = `hosted backend API; ${result.runtime_capabilities?.structural_ingest || "structural ingest"}`;
-    $("runtime-receipt").textContent = `${manifest}; graph integrity ${integrity}; artifact ${artifactId}`;
+    const repoCount = result.summary?.repo_count || result.repos?.length || 1;
+    $("runtime-receipt").textContent =
+      repoCount > 1 ? `${repoCount} repos; ${manifest}; aggregate integrity ${integrity}` : `${manifest}; graph integrity ${integrity}; artifact ${artifactId}`;
     return;
   }
   if (preview) {
@@ -420,8 +444,9 @@ function renderBlockTree() {
   for (const surface of state.surfaces) {
     const parts = surface.path.split("/");
     const directory = parts.length > 1 ? parts[0] : ".";
-    if (!byDirectory.has(directory)) byDirectory.set(directory, []);
-    byDirectory.get(directory).push(surface);
+    const key = `${surface.repo || state.currentRepo} / ${directory}`;
+    if (!byDirectory.has(key)) byDirectory.set(key, []);
+    byDirectory.get(key).push(surface);
   }
 
   const branches = [...byDirectory.entries()]
@@ -477,6 +502,7 @@ function renderEmptyBadge() {
 function renderFailureBadge(repo, error) {
   updateBadge({
     repo,
+    repos: state.currentRepos,
     mode: "failed",
     modeLabel: "Analysis failed",
     status: "needs review",
@@ -494,11 +520,12 @@ function renderFailureBadge(repo, error) {
   });
 }
 
-function buildBadgeData({ repo, mode, surfaces, result, warning = "" }) {
+function buildBadgeData({ repo, repos = [repo], mode, surfaces, result, warning = "" }) {
   const counts = [...countBy(surfaces, (surface) => surface.block).entries()].sort((a, b) => b[1] - a[1]);
   const files = new Set(surfaces.map((surface) => surface.path)).size;
   const nodes = Number(result?.summary?.node_count || surfaces.length || 0);
   const edges = Number(result?.summary?.edge_count || 0);
+  const repoCount = Number(result?.summary?.repo_count || repos.length || 1);
   const avgConfidence = surfaces.length ? surfaces.reduce((sum, surface) => sum + Number(surface.confidence || 0), 0) / surfaces.length : 0;
   const integrity = result?.summary?.graph_integrity?.overall_status || (mode === "hosted" ? "unknown" : "preview");
   const manifestOk = Boolean(result?.summary?.manifest?.required_artifacts_present);
@@ -506,6 +533,7 @@ function buildBadgeData({ repo, mode, surfaces, result, warning = "" }) {
   const grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : mode === "static" ? "PREVIEW" : "REVIEW";
   return {
     repo,
+    repos,
     mode,
     modeLabel: mode === "hosted" ? "Hosted backend graph" : "Browser GitHub preview",
     status: mode === "hosted" ? "graph receipt" : "bounded preview",
@@ -518,7 +546,7 @@ function buildBadgeData({ repo, mode, surfaces, result, warning = "" }) {
     integrity,
     completedAt: new Date(),
     warning,
-    primaryMetric: mode === "hosted" ? `${compactNumber(nodes)} nodes` : `${formatNumber(files)} files`,
+    primaryMetric: mode === "hosted" ? `${repoCount} repos / ${compactNumber(nodes)} nodes` : `${formatNumber(files)} files`,
     coverageLabel: mode === "hosted" ? "backend graph" : "static preview",
   };
 }
@@ -545,7 +573,7 @@ function buildMarkdownBadge(data) {
   const color = data.score >= 90 ? "2f7d5a" : data.score >= 80 ? "2f5f8f" : data.score >= 70 ? "8a6f2a" : "8f3434";
   const message = encodeURIComponent(`${data.grade} ${data.score}% | ${data.primaryMetric}`);
   const badgeUrl = `https://img.shields.io/badge/LogicLens-${message}-${color}?style=flat-square&labelColor=1f2937`;
-  const analyzerUrl = `${window.location.origin}${window.location.pathname}?repo=${encodeURIComponent(data.repo)}`;
+  const analyzerUrl = `${window.location.origin}${window.location.pathname}?repos=${encodeURIComponent((data.repos || [data.repo]).join(","))}`;
   return `[![LogicLens analysis](${badgeUrl})](${analyzerUrl})`;
 }
 
@@ -575,7 +603,7 @@ function buildBadgeSvg(data) {
       <rect width="${width}" height="${height}" fill="url(#badge-bg)"/>
       <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="#f7f9fb" stroke="#9aa8ba"/>
       <text x="42" y="58" font-family="Space Grotesk, Segoe UI, sans-serif" font-size="28" font-weight="700" fill="#263544">LogicLens analysis</text>
-      <text x="42" y="84" font-family="JetBrains Mono, Consolas, monospace" font-size="14" fill="#516173">${escapeXml(data.repo)}</text>
+      <text x="42" y="84" font-family="JetBrains Mono, Consolas, monospace" font-size="14" fill="#516173">${escapeXml(truncate(data.repo, 72))}</text>
       <text x="42" y="118" font-family="JetBrains Mono, Consolas, monospace" font-size="12" fill="#516173">${escapeXml(data.modeLabel)} / ${escapeXml(data.status)}</text>
       ${blockRows}
       <g transform="translate(585 42)">
@@ -611,7 +639,7 @@ function downloadBadgeSvg() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `logiclens-${state.latestBadge.repo.replace(/[^A-Za-z0-9_.-]+/g, "-")}.svg`;
+  link.download = `logiclens-${state.latestBadge.repo.replace(/[^A-Za-z0-9_.-]+/g, "-").slice(0, 90)}.svg`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -638,36 +666,45 @@ async function loadReferenceMetrics() {
 }
 
 function renderCaseBoard() {
-  const resultByRepo = new Map((state.reference?.results || []).map((item) => [item.full_name, item]));
-  $("case-grid").innerHTML = FEATURED_CASES.map((repo) => {
-    const [owner, name] = repo.split("/");
-    const result = resultByRepo.get(repo);
-    const nodes = result?.node_count != null ? `${compactNumber(Number(result.node_count))} nodes` : "live run";
-    const language = result?.language || "public repo";
-    const status = result?.status === "ok" ? "reference ok" : "try now";
+  $("case-grid").innerHTML = FEATURED_CASES.map((system) => {
     return `
-      <button class="case-card" type="button" data-repo="${escapeAttribute(repo)}">
+      <button class="case-card" type="button" data-repos="${escapeAttribute(system.repos.join(","))}">
         <span class="case-head">
-          <img src="https://github.com/${escapeAttribute(owner)}.png?size=96" alt="" loading="lazy" />
+          <img src="https://github.com/${escapeAttribute(system.repos[0].split("/")[0])}.png?size=96" alt="" loading="lazy" />
           <span>
-            <strong>${escapeHtml(name)}</strong>
-            <span>${escapeHtml(owner)}</span>
+            <strong>${escapeHtml(system.title)}</strong>
+            <span>${escapeHtml(system.repos.join(" + "))}</span>
           </span>
         </span>
         <span class="case-meta">
-          <span>${escapeHtml(language)}</span>
-          <span>${escapeHtml(status)}</span>
-          <span>${escapeHtml(nodes)}</span>
+          <span>${system.repos.length} repos</span>
+          <span>${escapeHtml(system.note)}</span>
+          <span>try system</span>
         </span>
       </button>`;
   }).join("");
   document.querySelectorAll(".case-card").forEach((card) => {
     card.addEventListener("click", () => {
-      const repo = card.getAttribute("data-repo");
-      $("repo-input").value = repo;
-      ingestRepo(repo);
+      const repos = normalizeRepoList((card.getAttribute("data-repos") || "").split(","));
+      setRepoInputs(repos);
+      ingestRepos(repos);
     });
   });
+}
+
+function getSelectedRepos() {
+  return normalizeRepoList([...document.querySelectorAll(".repo-input")].map((input) => input.value));
+}
+
+function setRepoInputs(repos) {
+  const inputs = [...document.querySelectorAll(".repo-input")];
+  inputs.forEach((input, index) => {
+    input.value = repos[index] || "";
+  });
+}
+
+function normalizeRepoList(values) {
+  return [...new Set(values.map(normalizeRepo).filter(Boolean))].slice(0, 5);
 }
 
 function normalizeRepo(value) {

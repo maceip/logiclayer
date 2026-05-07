@@ -8,21 +8,21 @@
       name="description"
       content="A concise GitHub Pages showcase for this repository's LogicLens paper implementation and public repository analyzer."
     />
-    <link rel="stylesheet" href="./assets/pages.css?v=20260507-logiclens-badge-001" />
+    <link rel="stylesheet" href="./assets/pages.css?v=20260507-multirepo-001" />
   </head>
   <body>
     <main class="app-shell">
       <section class="hero-band" aria-labelledby="page-title">
         <div class="hero-copy">
           <p class="eyebrow">LogicLens paper implementation / arXiv:2601.10773</p>
-          <h1 id="page-title">Architecture maps for real GitHub repos.</h1>
+          <h1 id="page-title">Architecture maps for real GitHub systems.</h1>
           <p class="lede">
-            This repository is one implementation of the LogicLens idea: parse a codebase,
+            This repository is one implementation of the LogicLens idea: parse codebases,
             build an evidence-backed graph, classify architecture blocks, and answer
             practical questions about where a change should land.
           </p>
           <div class="hero-actions">
-            <a class="button-like" href="#try-analyzer">Try a repository</a>
+            <a class="button-like" href="#system-example">See the system demo</a>
             <a class="button-like secondary" href="https://arxiv.org/abs/2601.10773">Read the paper</a>
           </div>
         </div>
@@ -63,32 +63,65 @@
         </div>
       </section>
 
+      <section class="system-example-band" id="system-example" aria-labelledby="system-example-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">featured multi-repo example</p>
+            <h2 id="system-example-title">Flask + Werkzeug + Jinja as one web stack.</h2>
+          </div>
+          <p class="section-note">
+            LogicLens is most useful when a developer needs to understand how independently
+            maintained repositories combine into a working system.
+          </p>
+        </div>
+        <div class="system-showcase">
+          <article class="system-card">
+            <strong>pallets/flask</strong>
+            <p>Application API, routing, request lifecycle, extension points.</p>
+          </article>
+          <article class="system-card">
+            <strong>pallets/werkzeug</strong>
+            <p>WSGI, HTTP primitives, request/response utilities, serving layer.</p>
+          </article>
+          <article class="system-card">
+            <strong>pallets/jinja</strong>
+            <p>Template engine, rendering model, expression/runtime surface.</p>
+          </article>
+        </div>
+        <div class="system-why">
+          <div>
+            <strong>What the platform should explain</strong>
+            <p>Where request handling crosses into rendering, which repos carry framework boundaries, and which files are the safest evidence anchors before changing web behavior.</p>
+          </div>
+          <button id="load-featured-system" type="button">Load this 3-repo example</button>
+        </div>
+      </section>
+
       <section class="analyzer-band" id="try-analyzer" aria-labelledby="analyzer-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">try analyzing any GitHub repo</p>
-            <h2 id="analyzer-title">Paste a public repository.</h2>
+            <p class="eyebrow">try analyzing a GitHub system</p>
+            <h2 id="analyzer-title">Pick 2 to 5 public repositories.</h2>
           </div>
           <p class="section-note">
-            Use <code>owner/name</code> or a root GitHub URL. The GitHub Pages page now calls
-            the hosted Python analyzer so the demo runs the real backend path.
+            Use <code>owner/name</code> or root GitHub URLs. The GitHub Pages page calls the
+            hosted Python analyzer so the demo runs the real backend path across the selected repos.
           </p>
         </div>
 
         <form id="repo-form" class="repo-form">
-          <label for="repo-input">Public GitHub repository URL or owner/name</label>
-          <div class="input-row">
-            <input
-              id="repo-input"
-              name="repo"
-              type="text"
-              value="openai/codex"
-              autocomplete="off"
-              spellcheck="false"
-              inputmode="url"
-            />
-            <button type="submit">Analyze repo</button>
+          <div class="repo-form-head">
+            <label>Public GitHub repositories</label>
+            <span>Two are required; add up to five.</span>
           </div>
+          <div class="repo-picker" id="repo-picker">
+            <input class="repo-input" name="repo-1" type="text" value="pallets/flask" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 1" />
+            <input class="repo-input" name="repo-2" type="text" value="pallets/werkzeug" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 2" />
+            <input class="repo-input" name="repo-3" type="text" value="pallets/jinja" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 3" />
+            <input class="repo-input" name="repo-4" type="text" value="" placeholder="optional fourth repo" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 4" />
+            <input class="repo-input" name="repo-5" type="text" value="" placeholder="optional fifth repo" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 5" />
+          </div>
+          <button type="submit">Analyze system</button>
           <p id="repo-status" class="status-text" role="status">Checking analyzer runtime.</p>
         </form>
 
@@ -103,7 +136,7 @@
           </div>
           <div>
             <strong>Safety scope</strong>
-            <span>Public GitHub repos only. Requests are origin-gated to GitHub Pages and rate-limited server-side.</span>
+            <span>Public GitHub repos only. Multi-repo requests are origin-gated to GitHub Pages and rate-limited server-side.</span>
           </div>
         </div>
       </section>
@@ -115,7 +148,7 @@
             <h2 id="badge-title">Analysis badge</h2>
           </div>
           <p class="section-note">
-            Every successful run generates a badge with repo, mode, coverage, top blocks, and a link back to this analyzer.
+            Every successful run generates a badge with repos, mode, coverage, top blocks, and a link back to this analyzer.
           </p>
         </div>
         <div class="badge-layout">
@@ -150,7 +183,7 @@
             <p class="eyebrow">analysis result</p>
             <h2 id="answers-title">Evidence-backed architecture summary</h2>
           </div>
-          <p class="section-note">The analyzer reports what it can prove from files, symbols, classifications, and graph receipts.</p>
+          <p class="section-note">The analyzer reports what it can prove from files, symbols, classifications, and per-repo graph receipts.</p>
         </div>
         <div class="answer-grid" id="answer-grid"></div>
 
@@ -170,7 +203,7 @@
           <table>
             <thead>
               <tr>
-                <th>Evidence surface</th>
+                <th>Repo / evidence surface</th>
                 <th>Primary block</th>
                 <th>Confidence</th>
                 <th>Signal</th>
@@ -181,6 +214,6 @@
         </div>
       </section>
     </main>
-    <script src="./assets/pages.js?v=20260507-logiclens-badge-001"></script>
+    <script src="./assets/pages.js?v=20260507-multirepo-001"></script>
   </body>
 </html>
