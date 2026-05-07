@@ -59,6 +59,7 @@ const SOURCE_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|prisma|java|rs|cpp|cc|
 const SKIP_PATHS = /(^|\/)(node_modules|\.git|dist|build|target|vendor|coverage|\.next|\.venv|\.venv-win|__pycache__)\//i;
 const FEATURED_CASES = ["openai/codex", "denoland/deno", "go-gitea/gitea", "zed-industries/zed", "immich-app/immich", "apache/hadoop"];
 const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
+const LOGICLENS_API_BASE_URL = (window.LOGICLENS_API_BASE_URL || "").replace(/\/+$/, "");
 
 const state = {
   currentRepo: "openai/codex",
@@ -125,7 +126,7 @@ async function ingestRepo(repo) {
     if (state.backendAvailable) {
       await ingestRepoHosted(repo);
     } else {
-      await ingestRepoStaticPreview(repo);
+      throw new Error("The real hosted analyzer is not available. Browser-only preview mode is disabled for this demo.");
     }
   } catch (error) {
     setStatus(`Analysis stopped: ${error.message}`, true);
@@ -140,20 +141,20 @@ async function ingestRepo(repo) {
 
 async function detectBackend() {
   try {
-    const health = await fetchJson("./api/health");
+    const health = await fetchJson(apiUrl("/api/health"));
     state.backendAvailable = Boolean(health.ok);
-    $("runtime-mode").textContent = `hosted backend API; ${health.active_jobs}/${health.max_active_jobs} active jobs`;
+    $("runtime-mode").textContent = health.sync ? "hosted Lambda analyzer; invoke-and-return" : `hosted backend API; ${health.active_jobs}/${health.max_active_jobs} active jobs`;
     setStatus("Hosted analyzer ready for a public GitHub repository.");
   } catch {
     state.backendAvailable = false;
-    $("runtime-mode").textContent = "GitHub Pages static preview";
-    setStatus("Hosted analyzer not detected; browser preview mode is ready.");
+    $("runtime-mode").textContent = "hosted analyzer unavailable";
+    setStatus("Hosted analyzer not detected. Browser-only preview mode is disabled for this demo.", true);
   }
 }
 
 async function ingestRepoHosted(repo) {
   setStatus(`Submitting hosted backend job for ${repo}.`);
-  const response = await fetch("./api/analyze", {
+  const response = await fetch(apiUrl("/api/analyze"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ repo }),
@@ -161,11 +162,18 @@ async function ingestRepoHosted(repo) {
   const job = await response.json();
   if (!response.ok) throw new Error(job.error || `API returned ${response.status}`);
 
+  if (job.status === "succeeded" && job.result) {
+    handleCompletedHostedResult(repo, job.result);
+    return;
+  }
+
   setStatus(`Hosted job ${job.job_id} queued for ${repo}.`);
   const completed = await pollJob(job.job_id);
   if (completed.status !== "succeeded") throw new Error(completed.error || "Hosted analysis failed.");
+  handleCompletedHostedResult(repo, completed.result);
+}
 
-  const result = completed.result;
+function handleCompletedHostedResult(repo, result) {
   state.latestReceipt = result;
   state.surfaces = normalizeHostedSurfaces(result.surfaces || []);
   renderRepoResults(result);
@@ -176,7 +184,7 @@ async function ingestRepoHosted(repo) {
 
 async function pollJob(jobId) {
   for (let attempt = 0; attempt < 240; attempt += 1) {
-    const job = await fetchJson(`./api/jobs/${encodeURIComponent(jobId)}`);
+    const job = await fetchJson(apiUrl(`/api/jobs/${encodeURIComponent(jobId)}`));
     if (job.status === "succeeded" || job.status === "failed") return job;
     const detail = job.message || (job.status === "running" ? "Hosted analyzer is running." : "Hosted analyzer is queued.");
     setStatus(`Hosted job ${jobId}: ${detail}`);
@@ -197,6 +205,9 @@ function normalizeHostedSurfaces(surfaces) {
   }));
 }
 
+// Browser-only preview is intentionally disabled while the public demo is wired
+// to the real hosted analyzer. Keep the implementation nearby for local
+// fallback experiments, but do not call it from the production flow.
 async function ingestRepoStaticPreview(repo) {
   setStatus(`Reading GitHub metadata for ${repo}.`);
   const meta = await fetchGitHubJson(repo, "");
@@ -685,6 +696,10 @@ function fetchGitHubJson(repo, path) {
   const base = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
   const url = path ? `${base}/${path}` : base;
   return fetchJson(url);
+}
+
+function apiUrl(path) {
+  return LOGICLENS_API_BASE_URL ? `${LOGICLENS_API_BASE_URL}${path}` : `.${path}`;
 }
 
 async function fetchJson(url, options = {}) {

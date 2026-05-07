@@ -70,8 +70,8 @@
             <h2 id="analyzer-title">Paste a public repository.</h2>
           </div>
           <p class="section-note">
-            Use <code>owner/name</code> or a root GitHub URL. Hosted mode runs the backend; GitHub Pages
-            static mode still produces a browser-side preview and badge.
+            Use <code>owner/name</code> or a root GitHub URL. The GitHub Pages page now calls
+            the hosted Python analyzer so the demo runs the real backend path.
           </p>
         </div>
 
@@ -103,7 +103,7 @@
           </div>
           <div>
             <strong>Safety scope</strong>
-            <span>Public GitHub repos only. No package installs, OpenAI calls, local paths, or private tokens.</span>
+            <span>Public GitHub repos only. Requests are origin-gated to GitHub Pages and rate-limited server-side.</span>
           </div>
         </div>
       </section>

@@ -3,15 +3,18 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import io
 import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import zipfile
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 from heart_transplant.artifact_manifest import write_artifact_manifest
 from heart_transplant.artifact_store import persist_structural_artifact, read_json
@@ -237,6 +240,9 @@ def build_operator_insights(surfaces: list[dict[str, Any]], block_counts: Counte
 
 
 def clone_or_reuse_public_repo(repo: str, limits: BetaLimits) -> tuple[Path, str | None]:
+    if os.environ.get("HEART_TRANSPLANT_BETA_FETCH_MODE") == "zipball":
+        return fetch_public_repo_zipball(repo, limits)
+
     owner, name = repo.split("/", 1)
     cache_root = beta_cache_root()
     cache_root.mkdir(parents=True, exist_ok=True)
@@ -272,6 +278,36 @@ def clone_or_reuse_public_repo(repo: str, limits: BetaLimits) -> tuple[Path, str
         return target, None
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         return target, f"Using cached checkout because update failed: {type(exc).__name__}"
+
+
+def fetch_public_repo_zipball(repo: str, limits: BetaLimits) -> tuple[Path, str | None]:
+    """Fetch a public GitHub repo as a zipball for serverless runtimes without git."""
+
+    owner, name = repo.split("/", 1)
+    cache_root = beta_cache_root()
+    cache_root.mkdir(parents=True, exist_ok=True)
+    target = cache_root / f"{owner}__{name}"
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True, exist_ok=True)
+
+    url = f"https://api.github.com/repos/{repo}/zipball/HEAD"
+    request = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "logiclens-beta-lambda"})
+    with urlopen(request, timeout=limits.clone_timeout_seconds) as response:  # noqa: S310 - fixed GitHub API host
+        archive = response.read()
+    with zipfile.ZipFile(io.BytesIO(archive)) as zf:
+        safe_members = [member for member in zf.infolist() if not _zip_member_is_unsafe(member.filename)]
+        zf.extractall(target, safe_members)
+
+    roots = [path for path in target.iterdir() if path.is_dir()]
+    if len(roots) == 1:
+        return roots[0], "Fetched GitHub zipball; git history is not available in serverless mode."
+    return target, "Fetched GitHub zipball; archive root could not be collapsed."
+
+
+def _zip_member_is_unsafe(name: str) -> bool:
+    path = Path(name)
+    return path.is_absolute() or ".." in path.parts
 
 
 def write_json_response(handler: Any, status: int, payload: dict[str, Any]) -> None:

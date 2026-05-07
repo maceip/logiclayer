@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,6 +9,9 @@ from heart_transplant.models import StructuralArtifact
 
 
 def artifact_root() -> Path:
+    configured = os.environ.get("HEART_TRANSPLANT_ARTIFACT_ROOT")
+    if configured:
+        return Path(configured).resolve()
     return Path(__file__).resolve().parents[3] / ".heart-transplant" / "artifacts"
 
 

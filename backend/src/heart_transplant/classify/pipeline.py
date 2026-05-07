@@ -6,8 +6,6 @@ import os
 
 from heart_transplant.artifact_store import read_json, write_json
 from heart_transplant.classify.heuristic import classify_node_heuristic
-from heart_transplant.classify.openai_blocks import classify_batch
-from heart_transplant.db.surreal_loader import load_block_assignments
 from heart_transplant.models import CodeNode, NeighborhoodRecord, StructuralArtifact
 from heart_transplant.semantic.enrichment import (
     build_semantic_actions,
@@ -33,6 +31,8 @@ def run_classification_on_artifact(
         nb = NeighborhoodRecord.model_validate(raw) if raw else None
         items.append((c, nb))
     if use_openai and os.environ.get("OPENAI_API_KEY"):
+        from heart_transplant.classify.openai_blocks import classify_batch
+
         assignments = classify_batch(items, use_openai=True)
     else:
         assignments = [classify_node_heuristic(c, nb) for c, nb in items]
@@ -54,6 +54,8 @@ def run_classification_on_artifact(
 
 
 def persist_semantic_to_surreal(artifact_dir: Path) -> int:
+    from heart_transplant.db.surreal_loader import load_block_assignments
+
     ap = Path(artifact_dir) / "semantic-artifact.json"
     if not ap.is_file():
         return 0

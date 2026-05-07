@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from heart_transplant.artifact_store import artifact_root
+from heart_transplant.beta_lambda import lambda_handler
 from heart_transplant.beta_runtime import BetaLimits, normalize_public_github_repo, run_hosted_analysis
 
 
@@ -55,3 +57,40 @@ def test_run_hosted_analysis_uses_beta_ingest_budget(monkeypatch: pytest.MonkeyP
     assert "src/keep.ts" in paths
     assert "vendor/skip.ts" not in paths
     assert "huge.ts" not in paths
+
+
+def test_artifact_root_can_target_serverless_tmp(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("HEART_TRANSPLANT_ARTIFACT_ROOT", str(tmp_path / "artifacts"))
+    assert artifact_root() == (tmp_path / "artifacts").resolve()
+
+
+def test_lambda_rejects_non_github_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LOGICLENS_RATE_LIMIT_TABLE", raising=False)
+    response = lambda_handler(
+        {
+            "rawPath": "/api/health",
+            "requestContext": {"http": {"method": "GET"}},
+            "headers": {"origin": "https://example.com"},
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 403
+    assert "Access-Control-Allow-Origin" not in response["headers"]
+
+
+def test_lambda_health_allows_github_pages_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LOGICLENS_RATE_LIMIT_TABLE", raising=False)
+    response = lambda_handler(
+        {
+            "rawPath": "/api/health",
+            "requestContext": {"http": {"method": "GET"}},
+            "headers": {"origin": "https://maceip.github.io"},
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert response["headers"]["Access-Control-Allow-Origin"] == "https://maceip.github.io"
+    assert response["body"]
+    assert '"sync": true' in response["body"]
