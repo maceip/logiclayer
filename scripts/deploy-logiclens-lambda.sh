@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FUNCTION_NAME="${LOGICLENS_LAMBDA_FUNCTION_NAME:-logiclens-beta-analyzer}"
 ROLE_NAME="${LOGICLENS_LAMBDA_ROLE_NAME:-logiclens-beta-analyzer-role}"
+ROLE_ARN_OVERRIDE="${LOGICLENS_LAMBDA_ROLE_ARN:-}"
 TABLE_NAME="${LOGICLENS_RATE_LIMIT_TABLE:-logiclens-beta-rate-limit}"
 ALLOWED_ORIGINS="${LOGICLENS_ALLOWED_ORIGINS:-https://maceip.github.io}"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
@@ -43,9 +44,12 @@ cp -a "$ROOT/backend/src/heart_transplant/." "$PACKAGE_DIR/heart_transplant/"
 
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text --region "$REGION")"
 ROLE_ARN="arn:aws:iam::$ACCOUNT_ID:role/$ROLE_NAME"
+if [[ -n "$ROLE_ARN_OVERRIDE" ]]; then
+  ROLE_ARN="$ROLE_ARN_OVERRIDE"
+fi
 TABLE_ARN="arn:aws:dynamodb:$REGION:$ACCOUNT_ID:table/$TABLE_NAME"
 
-if ! aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+if [[ -z "$ROLE_ARN_OVERRIDE" ]] && ! aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
   aws iam create-role \
     --role-name "$ROLE_NAME" \
     --assume-role-policy-document '{
@@ -63,17 +67,21 @@ if ! aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
   sleep 10
 fi
 
-aws iam put-role-policy \
-  --role-name "$ROLE_NAME" \
-  --policy-name logiclens-rate-limit-dynamodb \
-  --policy-document "{
-    \"Version\": \"2012-10-17\",
-    \"Statement\": [{
-      \"Effect\": \"Allow\",
-      \"Action\": [\"dynamodb:GetItem\", \"dynamodb:PutItem\"],
-      \"Resource\": \"$TABLE_ARN\"
-    }]
-  }" >/dev/null
+if [[ -z "$ROLE_ARN_OVERRIDE" ]]; then
+  aws iam put-role-policy \
+    --role-name "$ROLE_NAME" \
+    --policy-name logiclens-rate-limit-dynamodb \
+    --policy-document "{
+      \"Version\": \"2012-10-17\",
+      \"Statement\": [{
+        \"Effect\": \"Allow\",
+        \"Action\": [\"dynamodb:GetItem\", \"dynamodb:PutItem\"],
+        \"Resource\": \"$TABLE_ARN\"
+      }]
+    }" >/dev/null
+else
+  echo "Using existing Lambda role; ensure it can write logs and dynamodb:GetItem/PutItem on $TABLE_ARN" >&2
+fi
 
 if ! aws dynamodb describe-table --table-name "$TABLE_NAME" --region "$REGION" >/dev/null 2>&1; then
   aws dynamodb create-table \
