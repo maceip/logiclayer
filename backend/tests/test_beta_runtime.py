@@ -10,6 +10,8 @@ from heart_transplant.beta_runtime import BetaLimits, normalize_public_github_re
 def test_normalize_public_github_repo_accepts_owner_name_and_url() -> None:
     assert normalize_public_github_repo("openai/codex") == "openai/codex"
     assert normalize_public_github_repo("https://github.com/openai/codex.git") == "openai/codex"
+    assert normalize_public_github_repo("https://github.com/openai/codex/") == "openai/codex"
+    assert normalize_public_github_repo("git@github.com:openai/codex.git") == "openai/codex"
 
 
 @pytest.mark.parametrize("value", ["", "openai", "../x/y", "https://example.com/a/b", "openai/codex/tree/main"])

@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlparse
 
 from heart_transplant.artifact_manifest import write_artifact_manifest
 from heart_transplant.artifact_store import persist_structural_artifact, read_json
@@ -35,10 +36,19 @@ def repo_root() -> Path:
 
 
 def normalize_public_github_repo(value: str) -> str:
-    trimmed = value.strip()
-    match = re.search(r"github\.com[:/](?P<owner>[^/\s]+)\/(?P<repo>[^/\s.]+)(?:\.git)?", trimmed, re.IGNORECASE)
-    if match:
-        trimmed = f"{match.group('owner')}/{match.group('repo')}"
+    trimmed = value.strip().split("?", 1)[0].split("#", 1)[0].rstrip("/")
+    ssh_match = re.fullmatch(r"git@github\.com:(?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?", trimmed, re.IGNORECASE)
+    if ssh_match:
+        trimmed = f"{ssh_match.group('owner')}/{ssh_match.group('repo').removesuffix('.git')}"
+    elif "github.com" in trimmed.lower():
+        parsed = urlparse(trimmed if "://" in trimmed else f"https://{trimmed}")
+        if parsed.netloc.lower() != "github.com":
+            raise ValueError("Repository must be a public GitHub owner/name or github.com URL.")
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) != 2:
+            raise ValueError("Repository URL must point to a repository root, not a branch, file, or subpath.")
+        name = parts[1].removesuffix(".git")
+        trimmed = f"{parts[0]}/{name}"
     if not REPO_PATTERN.match(trimmed):
         raise ValueError("Repository must be a public GitHub owner/name or github.com URL.")
     owner, name = trimmed.split("/", 1)

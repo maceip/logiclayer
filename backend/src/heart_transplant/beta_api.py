@@ -14,7 +14,7 @@ import time
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from heart_transplant.beta_runtime import load_limits, repo_root, run_hosted_analysis, write_json_response
+from heart_transplant.beta_runtime import load_limits, normalize_public_github_repo, repo_root, run_hosted_analysis, write_json_response
 
 
 @dataclass
@@ -164,6 +164,7 @@ def make_handler(docs_dir: Path, job_store: JobStore, limiter: RateLimiter) -> t
             try:
                 payload = self._read_json_body()
                 repo = str(payload.get("repo") or "")
+                repo = normalize_public_github_repo(repo)
                 job = job_store.submit(repo)
             except Exception as exc:  # noqa: BLE001 - request error payload
                 write_json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
