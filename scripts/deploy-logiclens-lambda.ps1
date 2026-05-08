@@ -38,13 +38,17 @@ function Invoke-AwsChecked {
 
   $LastOutput = ""
   for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    $AttemptText = $(if ($MaxAttempts -gt 1) { " attempt $Attempt/$MaxAttempts" } else { "" })
+    Write-Host "AWS: $Action$AttemptText..." -ForegroundColor Cyan
     $Output = & $Aws @AwsArgs 2>&1
     $ExitCode = $LASTEXITCODE
     $LastOutput = ($Output | Out-String)
     if ($ExitCode -eq 0) {
+      Write-Host "AWS: $Action complete." -ForegroundColor Green
       return $Output
     }
     if ($AllowFailure) {
+      Write-Host "AWS: $Action did not succeed; continuing because this check is allowed to fail." -ForegroundColor DarkYellow
       return $Output
     }
     if ($Attempt -lt $MaxAttempts -and (Test-TransientAwsError $LastOutput)) {
@@ -203,6 +207,7 @@ New-Item -ItemType Directory -Force $PackageDir | Out-Null
 
 # Important on Windows: Lambda runs Linux, so dependencies with native wheels
 # must be resolved for manylinux, not for win_amd64.
+Write-Host "Stage: Installing Linux-compatible Lambda dependencies..." -ForegroundColor Cyan
 & $Uv pip install `
   --target $PackageDir `
   --python-version 3.12 `
@@ -213,10 +218,13 @@ New-Item -ItemType Directory -Force $PackageDir | Out-Null
   "tree-sitter-language-pack>=0.7,<1" `
   "boto3>=1.34,<2"
 Assert-LastExitCode "Installing Lambda dependencies with uv"
+Write-Host "Stage: Lambda dependencies installed." -ForegroundColor Green
 
 $PackageHt = Join-Path $PackageDir "heart_transplant"
 New-Item -ItemType Directory -Force $PackageHt | Out-Null
+Write-Host "Stage: Copying application source into Lambda package..." -ForegroundColor Cyan
 Copy-Item -Recurse -Force (Join-Path $Root "backend\src\heart_transplant\*") $PackageHt
+Write-Host "Stage: Application source copied." -ForegroundColor Green
 
 if (Test-Path $ZipPath) { Remove-Item -Force $ZipPath }
 $FilesToZip = Get-ChildItem -Path $PackageDir -Recurse -File
@@ -326,7 +334,9 @@ $Environment = @{
   }
 } | ConvertTo-Json -Compress -Depth 10
 $EnvironmentPath = Join-Path $BuildDir "lambda-environment.json"
+Write-Host "Stage: Writing Lambda environment configuration..." -ForegroundColor Cyan
 Write-Utf8NoBom -Path $EnvironmentPath -Value $Environment
+Write-Host "Stage: Lambda environment configuration written." -ForegroundColor Green
 
 $FunctionCheck = Invoke-AwsChecked -Action "Checking Lambda function $FunctionName" -AwsArgs @("lambda", "get-function", "--function-name", $FunctionName, "--region", $Region) -AllowFailure
 if ($LASTEXITCODE -eq 0) {
