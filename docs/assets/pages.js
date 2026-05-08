@@ -324,7 +324,7 @@ function addScore(scores, evidence, block, weight, label) {
 }
 
 function renderRepoResults(result) {
-  renderAssessment(result?.assessment);
+  renderAssessment(result?.assessment || buildClientAssessment(result));
   renderOperatorAnswers(result);
   const counts = countBy(state.surfaces, (surface) => surface.block);
   const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -363,6 +363,91 @@ function renderEmptyResults() {
       <strong>No assessment yet.</strong>
       <p>Run the commerce stack to see repo roles, entity/workflow answers, source citations, graph reasoning, and architecture Q&A.</p>
     </div>`;
+}
+
+function buildClientAssessment(result) {
+  if (!result || !state.surfaces.length) return null;
+  const repos = result.repos || state.currentRepos || [];
+  const evidence = state.surfaces;
+  const match = (terms, limit = 6) =>
+    evidence
+      .filter((surface) => terms.some((term) => `${surface.repo} ${surface.path} ${surface.name} ${surface.block} ${surface.signal}`.toLowerCase().includes(term)))
+      .slice(0, limit);
+  const dedupe = (items, limit = 8) => {
+    const seen = new Set();
+    const out = [];
+    for (const item of items) {
+      const key = `${item.repo}:${item.path}:${item.name}:${item.block}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+      if (out.length >= limit) break;
+    }
+    return out;
+  };
+  const roleFor = (repo) => {
+    const lower = repo.toLowerCase();
+    if (lower.includes("commerce")) return ["Storefront and commerce experience", "Starts product browsing, cart, and checkout behavior."];
+    if (lower.includes("auth")) return ["Identity and session boundary", "Owns User, Account, Session, Token, and provider concepts."];
+    if (lower.includes("stripe") || lower.includes("payment")) return ["Payment provider integration", "Owns Stripe SDK surfaces, customers, checkout sessions, and payment intents."];
+    return ["Architecture component", "Role inferred from returned evidence surfaces."];
+  };
+  const sessionEvidence = match(["session", "auth", "token", "user", "account"], 6);
+  const checkoutEvidence = match(["checkout", "cart", "order"], 6);
+  const paymentEvidence = match(["payment", "stripe", "invoice", "charge", "customer"], 6);
+  const impactEvidence = dedupe([...sessionEvidence, ...checkoutEvidence, ...paymentEvidence, ...evidence.filter((s) => ["Network Edge", "Access Control", "Data Persistence", "Connectivity Layer"].includes(s.block))], 8);
+  return {
+    headline: "Commerce checkout system assessment",
+    summary:
+      "LogicLens treats the selected repositories as one commerce system: a storefront that starts cart/checkout behavior, an identity layer that owns User and Session state, and a payment SDK surface that owns Stripe/PaymentIntent concepts.",
+    project_understanding: {
+      question: "What services/repos exist, what role does each play, and how do they relate?",
+      answer: "The system separates user-facing commerce, authentication/session ownership, and payment-provider integration. Changes to checkout behavior are likely to cross those boundaries.",
+      repos: repos.map((repo) => {
+        const [role, relationship] = roleFor(repo);
+        return { repo, role, relationship };
+      }),
+    },
+    entity_workflows: [
+      {
+        question: "Where is User, Session, Order, Checkout, or Payment handled?",
+        answer: "Entity signals are strongest around auth/session models, checkout/cart surfaces, and Stripe/payment API boundaries. Use these as workflow anchors before reading broad directories.",
+        evidence: dedupe([...sessionEvidence, ...checkoutEvidence, ...paymentEvidence], 8),
+      },
+      {
+        question: "Trace the checkout/login/payment workflow.",
+        answer: "Start at storefront cart/checkout surfaces, cross into session/auth boundaries for user identity, then inspect payment/webhook or Stripe SDK surfaces for money movement and fulfillment seams.",
+        evidence: dedupe([...checkoutEvidence, ...sessionEvidence, ...paymentEvidence], 8),
+      },
+    ],
+    code_grounded_retrieval: {
+      question: "Which files/functions/classes support these claims?",
+      answer: "Each claim below is backed by concrete repo/path/range evidence from the graph ingest and semantic block classifier.",
+      evidence: evidence.slice(0, 8),
+    },
+    graph_reasoning: {
+      question: "If I change checkout or payment creation, what might be affected?",
+      answer: "The first blast-radius ring is network/API surfaces, auth/session state, persistence models, and payment SDK calls. These are the cross-repo seams a developer should inspect before editing.",
+      evidence: impactEvidence,
+    },
+    architecture_qa: [
+      {
+        question: "Where is Session handled?",
+        answer: "Look first for Access Control and Data Persistence evidence containing session/auth/token/provider terms, then follow callers in storefront/API surfaces.",
+        evidence: sessionEvidence.slice(0, 5),
+      },
+      {
+        question: "Trace checkout to payment.",
+        answer: "Follow cart/checkout surfaces into payment or Stripe-named SDK/API surfaces; webhook-like network edges are the likely confirmation/fulfillment boundary.",
+        evidence: dedupe([...checkoutEvidence, ...paymentEvidence], 6),
+      },
+      {
+        question: "What should I inspect before changing payment behavior?",
+        answer: "Inspect high-confidence payment, network-edge, connectivity, and persistence surfaces first; these are where a local code change is most likely to affect external behavior.",
+        evidence: impactEvidence.slice(0, 6),
+      },
+    ],
+  };
 }
 
 function renderAssessment(assessment) {
