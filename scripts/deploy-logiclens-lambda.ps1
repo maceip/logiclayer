@@ -4,6 +4,7 @@ param(
   [string]$RoleArn = $env:LOGICLENS_LAMBDA_ROLE_ARN,
   [AllowEmptyString()][string]$RateLimitTable = $env:LOGICLENS_RATE_LIMIT_TABLE,
   [string]$AllowedOrigins = $env:LOGICLENS_ALLOWED_ORIGINS,
+  [string]$ArtifactBucket = $env:LOGICLENS_LAMBDA_ARTIFACT_BUCKET,
   [string]$Region = $(if ($env:AWS_REGION) { $env:AWS_REGION } elseif ($env:AWS_DEFAULT_REGION) { $env:AWS_DEFAULT_REGION } else { "eu-central-1" }),
   [string]$PythonBin = $env:PYTHON_BIN,
   [switch]$DryRun,
@@ -33,18 +34,23 @@ function Invoke-AwsChecked {
     [Parameter(Mandatory = $true)][string]$Action,
     [Parameter(Mandatory = $true)][string[]]$AwsArgs,
     [int]$MaxAttempts = 3,
-    [switch]$AllowFailure
+    [switch]$AllowFailure,
+    [string]$AllowedFailurePattern = ""
   )
 
   $LastOutput = ""
   for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
     $AttemptText = $(if ($MaxAttempts -gt 1) { " attempt $Attempt/$MaxAttempts" } else { "" })
     Write-Host "AWS: $Action$AttemptText..." -ForegroundColor Cyan
-    $Output = & $Aws @AwsArgs 2>&1
+    $Output = & $Aws --no-cli-pager --cli-connect-timeout 20 --cli-read-timeout 120 @AwsArgs 2>&1
     $ExitCode = $LASTEXITCODE
     $LastOutput = ($Output | Out-String)
     if ($ExitCode -eq 0) {
       Write-Host "AWS: $Action complete." -ForegroundColor Green
+      return $Output
+    }
+    if ($AllowFailure -and $AllowedFailurePattern -and ($LastOutput -match $AllowedFailurePattern)) {
+      Write-Host "AWS: $Action already satisfied." -ForegroundColor Green
       return $Output
     }
     if ($AllowFailure) {
@@ -148,6 +154,8 @@ else {
   Write-Warning "Using warm-runtime memory rate limiting because -UseMemoryRateLimit or LOGICLENS_USE_MEMORY_RATE_LIMIT=1 was set."
 }
 
+$ArtifactBucket = Read-Defaulted -Prompt "Lambda artifact S3 bucket (optional; leave blank for account default)" -Default $ArtifactBucket
+
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $BuildDir = Join-Path $Root ".lambda-build"
 $PackageDir = Join-Path $BuildDir "package"
@@ -172,6 +180,93 @@ function Resolve-CommandPath {
     if (Test-Path $Candidate) { return (Resolve-Path $Candidate).Path }
   }
   return $null
+}
+
+function Remove-DirectoryWithRetry {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [int]$MaxAttempts = 5
+  )
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+
+  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    try {
+      Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+      return
+    }
+    catch {
+      if ($Attempt -eq $MaxAttempts) { throw }
+      Start-Sleep -Milliseconds (250 * $Attempt)
+    }
+  }
+}
+
+function Assert-ZipPackage {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  $Zip = Get-Item -LiteralPath $Path -ErrorAction Stop
+  if ($Zip.Length -le 0) {
+    throw "Lambda ZIP was created but is empty: $Path"
+  }
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $Archive = [System.IO.Compression.ZipFile]::OpenRead($Zip.FullName)
+  try {
+    if ($Archive.Entries.Count -le 0) {
+      throw "Lambda ZIP has no entries: $Path"
+    }
+  }
+  finally {
+    $Archive.Dispose()
+  }
+}
+
+function Get-DirectoryFootprint {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  $Files = @(Get-ChildItem -LiteralPath $Path -Recurse -File -Force)
+  $Bytes = ($Files | Measure-Object Length -Sum).Sum
+  if ($null -eq $Bytes) { $Bytes = 0 }
+  [pscustomobject]@{
+    Files = $Files.Count
+    Bytes = [int64]$Bytes
+    Megabytes = [Math]::Round($Bytes / 1MB, 1)
+  }
+}
+
+function Optimize-LambdaPackage {
+  param([Parameter(Mandatory = $true)][string]$PackageDir)
+
+  # The hosted Lambda only parses these languages. tree-sitter-language-pack
+  # ships many large grammar binaries, so pruning unused bindings keeps deploys
+  # small and avoids slow Lambda create/update calls.
+  $AllowedTreeSitterBindings = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+  @("c", "cpp", "go", "java", "javascript", "python", "rust", "tsx", "typescript") | ForEach-Object {
+    $null = $AllowedTreeSitterBindings.Add($_)
+  }
+
+  $BindingsDir = Join-Path $PackageDir "tree_sitter_language_pack\bindings"
+  if (Test-Path -LiteralPath $BindingsDir) {
+    Get-ChildItem -LiteralPath $BindingsDir -File -Force | ForEach-Object {
+      $BindingName = $_.Name -replace "(\.abi3)?\.(so|pyd|dll)$", ""
+      if (-not $AllowedTreeSitterBindings.Contains($BindingName)) {
+        Remove-Item -LiteralPath $_.FullName -Force
+      }
+    }
+  }
+
+  Get-ChildItem -LiteralPath $PackageDir -Recurse -Directory -Force -Filter "__pycache__" |
+    Remove-Item -Recurse -Force
+  Get-ChildItem -LiteralPath $PackageDir -Recurse -File -Force -Include "*.pyc", "*.pyo" |
+    Remove-Item -Force
+}
+
+function Assert-LambdaPackageFootprint {
+  param(
+    [Parameter(Mandatory = $true)]$Footprint,
+    [int64]$LimitBytes = 262144000
+  )
+  if ($Footprint.Bytes -gt $LimitBytes) {
+    $LimitMb = [Math]::Round($LimitBytes / 1MB, 1)
+    throw "Lambda package is $($Footprint.Megabytes) MB uncompressed, over the $LimitMb MB Lambda limit. Refusing to deploy."
+  }
 }
 
 $UserLocalBin = Join-Path $HOME ".local\bin"
@@ -202,13 +297,14 @@ if ($PythonVersion -ne "3.12") {
   throw "Python 3.12 is required for this deploy. Detected Python $PythonVersion at $PythonBin. Set PYTHON_BIN=C:\Users\mac\.local\bin\python3.12.exe and rerun."
 }
 
-if (Test-Path $BuildDir) { Remove-Item -Recurse -Force $BuildDir }
+Remove-DirectoryWithRetry -Path $BuildDir
 New-Item -ItemType Directory -Force $PackageDir | Out-Null
 
 # Important on Windows: Lambda runs Linux, so dependencies with native wheels
 # must be resolved for manylinux, not for win_amd64.
 Write-Host "Stage: Installing Linux-compatible Lambda dependencies..." -ForegroundColor Cyan
 & $Uv pip install `
+  --python $PythonBin `
   --target $PackageDir `
   --python-version 3.12 `
   --python-platform x86_64-manylinux2014 `
@@ -218,6 +314,10 @@ Write-Host "Stage: Installing Linux-compatible Lambda dependencies..." -Foregrou
   "tree-sitter-language-pack>=0.7,<1" `
   "boto3>=1.34,<2"
 Assert-LastExitCode "Installing Lambda dependencies with uv"
+Optimize-LambdaPackage -PackageDir $PackageDir
+$PackageFootprint = Get-DirectoryFootprint -Path $PackageDir
+Assert-LambdaPackageFootprint -Footprint $PackageFootprint
+Write-Host "Stage: Lambda package footprint after pruning: $($PackageFootprint.Files) files, $($PackageFootprint.Megabytes) MB uncompressed." -ForegroundColor Green
 Write-Host "Stage: Lambda dependencies installed." -ForegroundColor Green
 
 $PackageHt = Join-Path $PackageDir "heart_transplant"
@@ -255,6 +355,7 @@ print(f"ZIP complete: {zip_path}", flush=True)
 & $PythonBin $ZipScript $PackageDir $ZipPath
 Assert-LastExitCode "Compressing Lambda ZIP with Python zipfile"
 Write-Progress -Activity "Packaging Lambda ZIP" -Completed
+Assert-ZipPackage -Path $ZipPath
 $ZipSizeMb = [Math]::Round((Get-Item $ZipPath).Length / 1MB, 1)
 Write-Host "Packaged Lambda ZIP: $ZipPath (${ZipSizeMb} MB)" -ForegroundColor Green
 
@@ -265,6 +366,7 @@ if ($DryRun) {
   Write-Output "role_name=$RoleName"
   Write-Output ("role_arn_override=" + $(if ($RoleArnOverrideSupplied) { "set" } else { "unset" }))
   Write-Output ("rate_limit_table=" + $(if ($RateLimitTable) { $RateLimitTable } else { "memory-fallback-explicit" }))
+  Write-Output ("artifact_bucket=" + $(if ($ArtifactBucket) { $ArtifactBucket } else { "account-default-after-sts" }))
   Write-Output "python_bin=$PythonBin"
   Write-Output "uv=$Uv"
   Write-Output "zip_path=$ZipPath"
@@ -274,6 +376,8 @@ if ($DryRun) {
 $AccountId = (Invoke-AwsChecked -Action "Reading AWS caller identity" -AwsArgs @("sts", "get-caller-identity", "--query", "Account", "--output", "text", "--region", $Region) | Out-String).Trim()
 if (-not $RoleArn) { $RoleArn = "arn:aws:iam::$AccountId`:role/$RoleName" }
 $TableArn = "arn:aws:dynamodb:$Region`:$AccountId`:table/$RateLimitTable"
+if (-not $ArtifactBucket) { $ArtifactBucket = "logiclens-lambda-artifacts-$AccountId-$Region" }
+$ArtifactKey = "lambda/$FunctionName/logiclens-beta-analyzer.zip"
 
 if (-not $RoleArnOverrideSupplied) {
   $RoleCheck = Invoke-AwsChecked -Action "Checking IAM role $RoleName" -AwsArgs @("iam", "get-role", "--role-name", $RoleName) -AllowFailure
@@ -328,6 +432,18 @@ if ($RateLimitTable) {
   }
 }
 
+$BucketCheck = Invoke-AwsChecked -Action "Checking Lambda artifact bucket $ArtifactBucket" -AwsArgs @("s3api", "head-bucket", "--bucket", $ArtifactBucket, "--region", $Region) -AllowFailure
+if ($LASTEXITCODE -ne 0) {
+  $CreateBucketArgs = @("s3api", "create-bucket", "--bucket", $ArtifactBucket, "--region", $Region)
+  if ($Region -ne "us-east-1") {
+    $CreateBucketArgs += @("--create-bucket-configuration", "LocationConstraint=$Region")
+  }
+  Invoke-AwsChecked -Action "Creating Lambda artifact bucket $ArtifactBucket" -AwsArgs $CreateBucketArgs | Out-Null
+  Invoke-AwsChecked -Action "Waiting for Lambda artifact bucket $ArtifactBucket" -AwsArgs @("s3api", "wait", "bucket-exists", "--bucket", $ArtifactBucket, "--region", $Region) -MaxAttempts 1 | Out-Null
+  Invoke-AwsChecked -Action "Blocking public access on Lambda artifact bucket $ArtifactBucket" -AwsArgs @("s3api", "put-public-access-block", "--bucket", $ArtifactBucket, "--public-access-block-configuration", "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true", "--region", $Region) | Out-Null
+}
+Invoke-AwsChecked -Action "Uploading Lambda artifact to s3://$ArtifactBucket/$ArtifactKey" -AwsArgs @("s3api", "put-object", "--bucket", $ArtifactBucket, "--key", $ArtifactKey, "--body", $ZipPath, "--region", $Region) | Out-Null
+
 $Environment = @{
   Variables = @{
     LOGICLENS_ALLOWED_ORIGINS = $AllowedOrigins
@@ -344,12 +460,12 @@ Write-Host "Stage: Lambda environment configuration written." -ForegroundColor G
 
 $FunctionCheck = Invoke-AwsChecked -Action "Checking Lambda function $FunctionName" -AwsArgs @("lambda", "get-function", "--function-name", $FunctionName, "--region", $Region) -AllowFailure
 if ($LASTEXITCODE -eq 0) {
-  Invoke-AwsChecked -Action "Updating Lambda function code for $FunctionName" -AwsArgs @("lambda", "update-function-code", "--function-name", $FunctionName, "--zip-file", "fileb://$ZipPath", "--region", $Region) | Out-Null
+  Invoke-AwsChecked -Action "Updating Lambda function code for $FunctionName" -AwsArgs @("lambda", "update-function-code", "--function-name", $FunctionName, "--s3-bucket", $ArtifactBucket, "--s3-key", $ArtifactKey, "--region", $Region) | Out-Null
   Invoke-AwsChecked -Action "Waiting for Lambda code update for $FunctionName" -AwsArgs @("lambda", "wait", "function-updated", "--function-name", $FunctionName, "--region", $Region) -MaxAttempts 1 | Out-Null
   Invoke-AwsChecked -Action "Updating Lambda function configuration for $FunctionName" -AwsArgs @("lambda", "update-function-configuration", "--function-name", $FunctionName, "--runtime", "python3.12", "--handler", "heart_transplant.beta_lambda.lambda_handler", "--timeout", "240", "--memory-size", "2048", "--ephemeral-storage", '{"Size":2048}', "--environment", "file://$EnvironmentPath", "--region", $Region) | Out-Null
 }
 else {
-  Invoke-AwsChecked -Action "Creating Lambda function $FunctionName" -AwsArgs @("lambda", "create-function", "--function-name", $FunctionName, "--runtime", "python3.12", "--role", $RoleArn, "--handler", "heart_transplant.beta_lambda.lambda_handler", "--timeout", "240", "--memory-size", "2048", "--ephemeral-storage", '{"Size":2048}', "--zip-file", "fileb://$ZipPath", "--environment", "file://$EnvironmentPath", "--region", $Region) | Out-Null
+  Invoke-AwsChecked -Action "Creating Lambda function $FunctionName" -AwsArgs @("lambda", "create-function", "--function-name", $FunctionName, "--runtime", "python3.12", "--role", $RoleArn, "--handler", "heart_transplant.beta_lambda.lambda_handler", "--timeout", "240", "--memory-size", "2048", "--ephemeral-storage", '{"Size":2048}', "--code", "S3Bucket=$ArtifactBucket,S3Key=$ArtifactKey", "--environment", "file://$EnvironmentPath", "--region", $Region) | Out-Null
   Invoke-AwsChecked -Action "Waiting for Lambda function $FunctionName to become active" -AwsArgs @("lambda", "wait", "function-active", "--function-name", $FunctionName, "--region", $Region) -MaxAttempts 1 | Out-Null
 }
 
@@ -358,9 +474,13 @@ if ($LASTEXITCODE -ne 0) {
   Invoke-AwsChecked -Action "Creating Lambda Function URL for $FunctionName" -AwsArgs @("lambda", "create-function-url-config", "--function-name", $FunctionName, "--auth-type", "NONE", "--region", $Region) | Out-Null
 }
 
-$AddPermissionOutput = Invoke-AwsChecked -Action "Adding Function URL invoke permission for $FunctionName" -AwsArgs @("lambda", "add-permission", "--function-name", $FunctionName, "--statement-id", "FunctionURLAllowPublicAccess", "--action", "lambda:InvokeFunctionUrl", "--principal", "*", "--function-url-auth-type", "NONE", "--region", $Region) -AllowFailure
+$AddPermissionOutput = Invoke-AwsChecked -Action "Adding Function URL invoke permission for $FunctionName" -AwsArgs @("lambda", "add-permission", "--function-name", $FunctionName, "--statement-id", "FunctionURLAllowPublicAccess", "--action", "lambda:InvokeFunctionUrl", "--principal", "*", "--function-url-auth-type", "NONE", "--region", $Region) -AllowFailure -AllowedFailurePattern "ResourceConflictException"
 if ($LASTEXITCODE -ne 0 -and (($AddPermissionOutput | Out-String) -notmatch "ResourceConflictException")) {
   throw "Failed to add Function URL invoke permission: $($AddPermissionOutput | Out-String)"
+}
+$AddInvokePermissionOutput = Invoke-AwsChecked -Action "Adding Function URL-backed Lambda invoke permission for $FunctionName" -AwsArgs @("lambda", "add-permission", "--function-name", $FunctionName, "--statement-id", "FunctionURLInvokeAllowPublicAccess", "--action", "lambda:InvokeFunction", "--principal", "*", "--invoked-via-function-url", "--region", $Region) -AllowFailure -AllowedFailurePattern "ResourceConflictException"
+if ($LASTEXITCODE -ne 0 -and (($AddInvokePermissionOutput | Out-String) -notmatch "ResourceConflictException")) {
+  throw "Failed to add Function URL-backed Lambda invoke permission: $($AddInvokePermissionOutput | Out-String)"
 }
 
 $FunctionUrl = (Invoke-AwsChecked -Action "Reading Lambda Function URL for $FunctionName" -AwsArgs @("lambda", "get-function-url-config", "--function-name", $FunctionName, "--query", "FunctionUrl", "--output", "text", "--region", $Region) | Out-String).Trim()
