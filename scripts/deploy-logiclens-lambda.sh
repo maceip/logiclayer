@@ -7,11 +7,24 @@ ROLE_NAME="${LOGICLENS_LAMBDA_ROLE_NAME:-logiclens-beta-analyzer-role}"
 ROLE_ARN_OVERRIDE="${LOGICLENS_LAMBDA_ROLE_ARN:-}"
 TABLE_NAME="${LOGICLENS_RATE_LIMIT_TABLE-logiclens-beta-rate-limit}"
 ALLOWED_ORIGINS="${LOGICLENS_ALLOWED_ORIGINS:-https://maceip.github.io}"
-REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
+REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-central-1}}"
 BUILD_DIR="$ROOT/.lambda-build"
 PACKAGE_DIR="$BUILD_DIR/package"
 ZIP_PATH="$BUILD_DIR/logiclens-beta-analyzer.zip"
-PYTHON_BIN="${PYTHON_BIN:-$ROOT/venv/bin/python}"
+PATH="$HOME/.local/bin:$PATH"
+
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  if [[ -x "$ROOT/venv/bin/python" ]]; then
+    PYTHON_BIN="$ROOT/venv/bin/python"
+  elif command -v python3.12 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3.12)"
+  elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3)"
+  else
+    echo "Python 3.12 or python3 is required. Set PYTHON_BIN=/path/to/python if needed." >&2
+    exit 1
+  fi
+fi
 
 if ! command -v aws >/dev/null 2>&1; then
   echo "aws CLI is required in PATH" >&2
@@ -19,8 +32,13 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 
 if ! command -v uv >/dev/null 2>&1; then
-  echo "uv is required in PATH" >&2
+  echo "uv is required in PATH. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
   exit 1
+fi
+
+PYTHON_VERSION="$("$PYTHON_BIN" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+if [[ "$PYTHON_VERSION" != "3.12" ]]; then
+  echo "Warning: packaging with Python $PYTHON_VERSION while Lambda runtime is python3.12. Prefer PYTHON_BIN pointing to Python 3.12." >&2
 fi
 
 rm -rf "$BUILD_DIR"
@@ -41,6 +59,18 @@ cp -a "$ROOT/backend/src/heart_transplant/." "$PACKAGE_DIR/heart_transplant/"
   cd "$PACKAGE_DIR"
   zip -qr "$ZIP_PATH" .
 )
+
+if [[ "${LOGICLENS_DEPLOY_DRY_RUN:-0}" == "1" ]]; then
+  echo "dry_run=1"
+  echo "region=$REGION"
+  echo "function_name=$FUNCTION_NAME"
+  echo "role_name=$ROLE_NAME"
+  echo "role_arn_override=$([[ -n "$ROLE_ARN_OVERRIDE" ]] && echo set || echo unset)"
+  echo "rate_limit_table=$([[ -n "$TABLE_NAME" ]] && echo "$TABLE_NAME" || echo memory-fallback)"
+  echo "python_bin=$PYTHON_BIN"
+  echo "zip_path=$ZIP_PATH"
+  exit 0
+fi
 
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text --region "$REGION")"
 ROLE_ARN="arn:aws:iam::$ACCOUNT_ID:role/$ROLE_NAME"
