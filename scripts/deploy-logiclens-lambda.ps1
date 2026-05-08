@@ -12,6 +12,16 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+  $PSNativeCommandUseErrorActionPreference = $false
+}
+
+function Assert-LastExitCode {
+  param([Parameter(Mandatory = $true)][string]$Action)
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Action failed with exit code $LASTEXITCODE."
+  }
+}
 
 if (-not $FunctionName) { $FunctionName = "logiclens-beta-analyzer" }
 if (-not $RoleName) { $RoleName = "logiclens-beta-analyzer-role" }
@@ -68,6 +78,12 @@ if (-not $env:AWS_SECRET_ACCESS_KEY) {
 if (-not $env:AWS_SESSION_TOKEN) {
   $Token = Read-SecretString -Prompt "AWS_SESSION_TOKEN (optional)"
   if ($Token) { $env:AWS_SESSION_TOKEN = $Token }
+}
+if ($env:AWS_ACCESS_KEY_ID -and $env:AWS_SECRET_ACCESS_KEY) {
+  # Raw env credentials should win. A stale AWS_PROFILE or credentials file path
+  # can make AWS CLI ignore otherwise-valid access key env vars on some setups.
+  Remove-Item Env:AWS_PROFILE -ErrorAction SilentlyContinue
+  Remove-Item Env:AWS_SHARED_CREDENTIALS_FILE -ErrorAction SilentlyContinue
 }
 
 $Region = Read-Defaulted -Prompt "AWS region" -Default $Region
@@ -162,6 +178,7 @@ New-Item -ItemType Directory -Force $PackageDir | Out-Null
   "tree-sitter>=0.25,<0.26" `
   "tree-sitter-language-pack>=0.7,<1" `
   "boto3>=1.34,<2"
+Assert-LastExitCode "Installing Lambda dependencies with uv"
 
 $PackageHt = Join-Path $PackageDir "heart_transplant"
 New-Item -ItemType Directory -Force $PackageHt | Out-Null
@@ -190,6 +207,7 @@ if ($DryRun) {
 }
 
 $AccountId = & $Aws sts get-caller-identity --query Account --output text --region $Region
+Assert-LastExitCode "Reading AWS caller identity"
 if (-not $RoleArn) { $RoleArn = "arn:aws:iam::$AccountId`:role/$RoleName" }
 $TableArn = "arn:aws:dynamodb:$Region`:$AccountId`:table/$RateLimitTable"
 
@@ -209,10 +227,12 @@ if (-not $RoleArnOverrideSupplied) {
 '@
     Write-Utf8NoBom -Path $AssumeRolePolicy -Value $AssumeRoleJson
     & $Aws iam create-role --role-name $RoleName --assume-role-policy-document "file://$AssumeRolePolicy" | Out-Null
+    Assert-LastExitCode "Creating IAM role $RoleName"
     Start-Sleep -Seconds 10
   }
   # Idempotent when already attached; keeps pre-created script roles usable.
   & $Aws iam attach-role-policy --role-name $RoleName --policy-arn "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole" | Out-Null
+  Assert-LastExitCode "Attaching AWSLambdaBasicExecutionRole to $RoleName"
 }
 
 if ($RateLimitTable -and -not $RoleArnOverrideSupplied) {
@@ -229,6 +249,7 @@ if ($RateLimitTable -and -not $RoleArnOverrideSupplied) {
   } | ConvertTo-Json -Depth 10
   Write-Utf8NoBom -Path $RolePolicy -Value $RolePolicyJson
   & $Aws iam put-role-policy --role-name $RoleName --policy-name "logiclens-rate-limit-dynamodb" --policy-document "file://$RolePolicy" | Out-Null
+  Assert-LastExitCode "Putting DynamoDB rate-limit policy on $RoleName"
 }
 elseif ($RateLimitTable) {
   Write-Warning "Using an existing Lambda role. Ensure it can write logs and dynamodb:GetItem/PutItem on $TableArn."
@@ -246,11 +267,14 @@ if ($RateLimitTable) {
       --key-schema AttributeName=pk,KeyType=HASH `
       --billing-mode PAY_PER_REQUEST `
       --region $Region | Out-Null
+    Assert-LastExitCode "Creating DynamoDB table $RateLimitTable"
     & $Aws dynamodb wait table-exists --table-name $RateLimitTable --region $Region
+    Assert-LastExitCode "Waiting for DynamoDB table $RateLimitTable"
     & $Aws dynamodb update-time-to-live `
       --table-name $RateLimitTable `
       --time-to-live-specification "Enabled=true,AttributeName=expires_at" `
       --region $Region | Out-Null
+    Assert-LastExitCode "Enabling TTL on DynamoDB table $RateLimitTable"
   }
 }
 
@@ -272,7 +296,9 @@ if ($LASTEXITCODE -eq 0) {
     --function-name $FunctionName `
     --zip-file "fileb://$ZipPath" `
     --region $Region | Out-Null
+  Assert-LastExitCode "Updating Lambda function code for $FunctionName"
   & $Aws lambda wait function-updated --function-name $FunctionName --region $Region
+  Assert-LastExitCode "Waiting for Lambda code update for $FunctionName"
   & $Aws lambda update-function-configuration `
     --function-name $FunctionName `
     --runtime "python3.12" `
@@ -282,6 +308,7 @@ if ($LASTEXITCODE -eq 0) {
     --ephemeral-storage '{"Size":2048}' `
     --environment "file://$EnvironmentPath" `
     --region $Region | Out-Null
+  Assert-LastExitCode "Updating Lambda function configuration for $FunctionName"
 }
 else {
   & $Aws lambda create-function `
@@ -295,12 +322,15 @@ else {
     --zip-file "fileb://$ZipPath" `
     --environment "file://$EnvironmentPath" `
     --region $Region | Out-Null
+  Assert-LastExitCode "Creating Lambda function $FunctionName"
   & $Aws lambda wait function-active --function-name $FunctionName --region $Region
+  Assert-LastExitCode "Waiting for Lambda function $FunctionName to become active"
 }
 
 & $Aws lambda get-function-url-config --function-name $FunctionName --region $Region *> $null
 if ($LASTEXITCODE -ne 0) {
   & $Aws lambda create-function-url-config --function-name $FunctionName --auth-type NONE --region $Region | Out-Null
+  Assert-LastExitCode "Creating Lambda Function URL for $FunctionName"
 }
 
 $AddPermissionOutput = & $Aws lambda add-permission `
@@ -315,4 +345,5 @@ if ($LASTEXITCODE -ne 0 -and (($AddPermissionOutput | Out-String) -notmatch "Res
 }
 
 $FunctionUrl = & $Aws lambda get-function-url-config --function-name $FunctionName --query FunctionUrl --output text --region $Region
+Assert-LastExitCode "Reading Lambda Function URL for $FunctionName"
 Write-Output $FunctionUrl
