@@ -231,25 +231,29 @@ $FilesToZip = Get-ChildItem -Path $PackageDir -Recurse -File
 $TotalFiles = [Math]::Max(1, $FilesToZip.Count)
 Write-Progress -Activity "Packaging Lambda ZIP" -Status "Compressing $TotalFiles files" -PercentComplete 0
 Write-Host "Packaging Lambda ZIP ($TotalFiles files)..." -ForegroundColor Cyan
-if (Get-Command zip -ErrorAction SilentlyContinue) {
-  Push-Location $PackageDir
-  try {
-    & zip -qr $ZipPath .
-    Assert-LastExitCode "Compressing Lambda ZIP with zip"
-  }
-  finally {
-    Pop-Location
-  }
-}
-else {
-  Push-Location $PackageDir
-  try {
-    Compress-Archive -Path * -DestinationPath $ZipPath -Force
-  }
-  finally {
-    Pop-Location
-  }
-}
+$ZipScript = Join-Path $BuildDir "make-lambda-zip.py"
+Write-Utf8NoBom -Path $ZipScript -Value @'
+from __future__ import annotations
+
+from pathlib import Path
+import os
+import sys
+import zipfile
+
+package_dir = Path(sys.argv[1]).resolve()
+zip_path = Path(sys.argv[2]).resolve()
+files = [Path(root) / name for root, _dirs, names in os.walk(package_dir) for name in names]
+total = max(1, len(files))
+with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+    for index, path in enumerate(files, 1):
+        arcname = path.relative_to(package_dir).as_posix()
+        zf.write(path, arcname)
+        if index == 1 or index % 100 == 0 or index == total:
+            print(f"ZIP progress: {index}/{total} files", flush=True)
+print(f"ZIP complete: {zip_path}", flush=True)
+'@
+& $PythonBin $ZipScript $PackageDir $ZipPath
+Assert-LastExitCode "Compressing Lambda ZIP with Python zipfile"
 Write-Progress -Activity "Packaging Lambda ZIP" -Completed
 $ZipSizeMb = [Math]::Round((Get-Item $ZipPath).Length / 1MB, 1)
 Write-Host "Packaged Lambda ZIP: $ZipPath (${ZipSizeMb} MB)" -ForegroundColor Green
