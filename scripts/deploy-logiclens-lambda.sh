@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FUNCTION_NAME="${LOGICLENS_LAMBDA_FUNCTION_NAME:-logiclens-beta-analyzer}"
 ROLE_NAME="${LOGICLENS_LAMBDA_ROLE_NAME:-logiclens-beta-analyzer-role}"
 ROLE_ARN_OVERRIDE="${LOGICLENS_LAMBDA_ROLE_ARN:-}"
-TABLE_NAME="${LOGICLENS_RATE_LIMIT_TABLE:-logiclens-beta-rate-limit}"
+TABLE_NAME="${LOGICLENS_RATE_LIMIT_TABLE-logiclens-beta-rate-limit}"
 ALLOWED_ORIGINS="${LOGICLENS_ALLOWED_ORIGINS:-https://maceip.github.io}"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
 BUILD_DIR="$ROOT/.lambda-build"
@@ -67,7 +67,7 @@ if [[ -z "$ROLE_ARN_OVERRIDE" ]] && ! aws iam get-role --role-name "$ROLE_NAME" 
   sleep 10
 fi
 
-if [[ -z "$ROLE_ARN_OVERRIDE" ]]; then
+if [[ -n "$TABLE_NAME" && -z "$ROLE_ARN_OVERRIDE" ]]; then
   aws iam put-role-policy \
     --role-name "$ROLE_NAME" \
     --policy-name logiclens-rate-limit-dynamodb \
@@ -79,11 +79,13 @@ if [[ -z "$ROLE_ARN_OVERRIDE" ]]; then
         \"Resource\": \"$TABLE_ARN\"
       }]
     }" >/dev/null
-else
+elif [[ -n "$TABLE_NAME" ]]; then
   echo "Using existing Lambda role; ensure it can write logs and dynamodb:GetItem/PutItem on $TABLE_ARN" >&2
+else
+  echo "LOGICLENS_RATE_LIMIT_TABLE is empty; deploying with warm-runtime memory rate limiting fallback" >&2
 fi
 
-if ! aws dynamodb describe-table --table-name "$TABLE_NAME" --region "$REGION" >/dev/null 2>&1; then
+if [[ -n "$TABLE_NAME" ]] && ! aws dynamodb describe-table --table-name "$TABLE_NAME" --region "$REGION" >/dev/null 2>&1; then
   aws dynamodb create-table \
     --table-name "$TABLE_NAME" \
     --attribute-definitions AttributeName=pk,AttributeType=S \

@@ -32,6 +32,7 @@ class SmartTokenBucket:
         self.refill_per_second = float(os.environ.get("LOGICLENS_RATE_LIMIT_REFILL_PER_SECOND", "0.08"))
         self.item_ttl_seconds = int(os.environ.get("LOGICLENS_RATE_LIMIT_ITEM_TTL_SECONDS", "86400"))
         self._table = None
+        self._memory_hits: dict[str, dict[str, float | int]] = {}
 
     @property
     def table(self) -> Any | None:
@@ -45,7 +46,7 @@ class SmartTokenBucket:
 
     def allow(self, *, identity: str, cost: float) -> RateDecision:
         if self.table is None:
-            return RateDecision(allowed=True)
+            return self._allow_memory(identity=identity, cost=cost)
 
         now = time.time()
         key = {"pk": identity}
@@ -68,6 +69,24 @@ class SmartTokenBucket:
         tokens -= cost
         strikes = max(0, strikes - 1)
         self._put(identity, tokens=tokens, now=now, strikes=strikes, blocked_until=0)
+        return RateDecision(True)
+
+    def _allow_memory(self, *, identity: str, cost: float) -> RateDecision:
+        now = time.time()
+        item = self._memory_hits.get(identity, {})
+        tokens = float(item.get("tokens", self.capacity))
+        updated_at = float(item.get("updated_at", now))
+        strikes = int(item.get("strikes", 0))
+        blocked_until = float(item.get("blocked_until", 0))
+        tokens = min(self.capacity, tokens + max(0, now - updated_at) * self.refill_per_second)
+        if blocked_until > now:
+            return RateDecision(False, retry_after_seconds=max(1, int(blocked_until - now)), reason="memory_cooldown")
+        if tokens < cost:
+            strikes += 1
+            cooldown = min(900, 2 ** min(strikes, 9))
+            self._memory_hits[identity] = {"tokens": tokens, "updated_at": now, "strikes": strikes, "blocked_until": now + cooldown}
+            return RateDecision(False, retry_after_seconds=cooldown, reason="memory_token_budget")
+        self._memory_hits[identity] = {"tokens": tokens - cost, "updated_at": now, "strikes": max(0, strikes - 1), "blocked_until": 0}
         return RateDecision(True)
 
     def _put(self, identity: str, *, tokens: float, now: float, strikes: int, blocked_until: float) -> None:
