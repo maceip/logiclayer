@@ -8,6 +8,8 @@ backend/.pytest_tmp/
 .repocity/
 .pytest_tmp/
 vendor/github-repos/
+vendor/webtui/
+artifacts/
 node_modules/
 __pycache__/
 *.egg-info/

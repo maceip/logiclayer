@@ -1,5 +1,5 @@
 @layer base, utils, components, app;
-@import "https://cdn.jsdelivr.net/npm/@webtui/css@latest/dist/full.css";
+@import "./vendor/webtui-full.css";
 
 @layer app {
   :root {
