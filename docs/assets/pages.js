@@ -184,7 +184,7 @@ async function ingestRepoHosted(repos) {
     return;
   }
 
-  setStatus(`Hosted job ${job.job_id} queued for ${repo}.`);
+  setStatus(`Hosted job ${job.job_id} queued for ${repoLabel}.`);
   const completed = await pollJob(job.job_id);
   if (completed.status !== "succeeded") throw new Error(completed.error || "Hosted analysis failed.");
   handleCompletedHostedResult(repoLabel, completed.result);
