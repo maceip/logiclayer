@@ -23,6 +23,41 @@ function Assert-LastExitCode {
   }
 }
 
+function Test-TransientAwsError {
+  param([string]$Text)
+  return $Text -match "Connection was closed|valid response|timeout|timed out|connection reset|temporarily unavailable|TLS"
+}
+
+function Invoke-AwsChecked {
+  param(
+    [Parameter(Mandatory = $true)][string]$Action,
+    [Parameter(Mandatory = $true)][string[]]$AwsArgs,
+    [int]$MaxAttempts = 3,
+    [switch]$AllowFailure
+  )
+
+  $LastOutput = ""
+  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    $Output = & $Aws @AwsArgs 2>&1
+    $ExitCode = $LASTEXITCODE
+    $LastOutput = ($Output | Out-String)
+    if ($ExitCode -eq 0) {
+      return $Output
+    }
+    if ($AllowFailure) {
+      return $Output
+    }
+    if ($Attempt -lt $MaxAttempts -and (Test-TransientAwsError $LastOutput)) {
+      $SleepSeconds = [math]::Min(20, [math]::Pow(2, $Attempt))
+      Write-Warning "$Action failed transiently; retrying in $SleepSeconds seconds. $LastOutput"
+      Start-Sleep -Seconds $SleepSeconds
+      continue
+    }
+    throw "$Action failed after $Attempt attempt(s): $LastOutput"
+  }
+  throw "$Action failed: $LastOutput"
+}
+
 if (-not $FunctionName) { $FunctionName = "logiclens-beta-analyzer" }
 if (-not $RoleName) { $RoleName = "logiclens-beta-analyzer-role" }
 if ($env:LOGICLENS_USE_MEMORY_RATE_LIMIT -eq "1") { $UseMemoryRateLimit = $true }
@@ -143,11 +178,10 @@ if (-not $Uv) {
 
 if (-not $PythonBin) {
   $PythonBin = Resolve-CommandPath @(
-    (Join-Path $Root "venv\Scripts\python.exe"),
     (Join-Path $UserLocalBin "python3.12.exe"),
+    (Join-Path $Root "venv\Scripts\python.exe"),
     "python3.12",
-    "python",
-    "py"
+    "python"
   )
 }
 if (-not $PythonBin) {
@@ -161,7 +195,7 @@ if (-not $Aws) {
 
 $PythonVersion = & $PythonBin -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
 if ($PythonVersion -ne "3.12") {
-  Write-Warning "Packaging with Python $PythonVersion while Lambda runtime is python3.12. Prefer Python 3.12."
+  throw "Python 3.12 is required for this deploy. Detected Python $PythonVersion at $PythonBin. Set PYTHON_BIN=C:\Users\mac\.local\bin\python3.12.exe and rerun."
 }
 
 if (Test-Path $BuildDir) { Remove-Item -Recurse -Force $BuildDir }
@@ -185,13 +219,32 @@ New-Item -ItemType Directory -Force $PackageHt | Out-Null
 Copy-Item -Recurse -Force (Join-Path $Root "backend\src\heart_transplant\*") $PackageHt
 
 if (Test-Path $ZipPath) { Remove-Item -Force $ZipPath }
-Push-Location $PackageDir
-try {
-  Compress-Archive -Path * -DestinationPath $ZipPath -Force
+$FilesToZip = Get-ChildItem -Path $PackageDir -Recurse -File
+$TotalFiles = [Math]::Max(1, $FilesToZip.Count)
+Write-Progress -Activity "Packaging Lambda ZIP" -Status "Compressing $TotalFiles files" -PercentComplete 0
+Write-Host "Packaging Lambda ZIP ($TotalFiles files)..." -ForegroundColor Cyan
+if (Get-Command zip -ErrorAction SilentlyContinue) {
+  Push-Location $PackageDir
+  try {
+    & zip -qr $ZipPath .
+    Assert-LastExitCode "Compressing Lambda ZIP with zip"
+  }
+  finally {
+    Pop-Location
+  }
 }
-finally {
-  Pop-Location
+else {
+  Push-Location $PackageDir
+  try {
+    Compress-Archive -Path * -DestinationPath $ZipPath -Force
+  }
+  finally {
+    Pop-Location
+  }
 }
+Write-Progress -Activity "Packaging Lambda ZIP" -Completed
+$ZipSizeMb = [Math]::Round((Get-Item $ZipPath).Length / 1MB, 1)
+Write-Host "Packaged Lambda ZIP: $ZipPath (${ZipSizeMb} MB)" -ForegroundColor Green
 
 if ($DryRun) {
   Write-Output "dry_run=1"
@@ -206,13 +259,12 @@ if ($DryRun) {
   exit 0
 }
 
-$AccountId = & $Aws sts get-caller-identity --query Account --output text --region $Region
-Assert-LastExitCode "Reading AWS caller identity"
+$AccountId = (Invoke-AwsChecked -Action "Reading AWS caller identity" -AwsArgs @("sts", "get-caller-identity", "--query", "Account", "--output", "text", "--region", $Region) | Out-String).Trim()
 if (-not $RoleArn) { $RoleArn = "arn:aws:iam::$AccountId`:role/$RoleName" }
 $TableArn = "arn:aws:dynamodb:$Region`:$AccountId`:table/$RateLimitTable"
 
 if (-not $RoleArnOverrideSupplied) {
-  & $Aws iam get-role --role-name $RoleName *> $null
+  $RoleCheck = Invoke-AwsChecked -Action "Checking IAM role $RoleName" -AwsArgs @("iam", "get-role", "--role-name", $RoleName) -AllowFailure
   if ($LASTEXITCODE -ne 0) {
     $AssumeRolePolicy = Join-Path $BuildDir "assume-role-policy.json"
     $AssumeRoleJson = @'
@@ -226,13 +278,11 @@ if (-not $RoleArnOverrideSupplied) {
 }
 '@
     Write-Utf8NoBom -Path $AssumeRolePolicy -Value $AssumeRoleJson
-    & $Aws iam create-role --role-name $RoleName --assume-role-policy-document "file://$AssumeRolePolicy" | Out-Null
-    Assert-LastExitCode "Creating IAM role $RoleName"
+    Invoke-AwsChecked -Action "Creating IAM role $RoleName" -AwsArgs @("iam", "create-role", "--role-name", $RoleName, "--assume-role-policy-document", "file://$AssumeRolePolicy") | Out-Null
     Start-Sleep -Seconds 10
   }
   # Idempotent when already attached; keeps pre-created script roles usable.
-  & $Aws iam attach-role-policy --role-name $RoleName --policy-arn "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole" | Out-Null
-  Assert-LastExitCode "Attaching AWSLambdaBasicExecutionRole to $RoleName"
+  Invoke-AwsChecked -Action "Attaching AWSLambdaBasicExecutionRole to $RoleName" -AwsArgs @("iam", "attach-role-policy", "--role-name", $RoleName, "--policy-arn", "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole") | Out-Null
 }
 
 if ($RateLimitTable -and -not $RoleArnOverrideSupplied) {
@@ -248,8 +298,7 @@ if ($RateLimitTable -and -not $RoleArnOverrideSupplied) {
     )
   } | ConvertTo-Json -Depth 10
   Write-Utf8NoBom -Path $RolePolicy -Value $RolePolicyJson
-  & $Aws iam put-role-policy --role-name $RoleName --policy-name "logiclens-rate-limit-dynamodb" --policy-document "file://$RolePolicy" | Out-Null
-  Assert-LastExitCode "Putting DynamoDB rate-limit policy on $RoleName"
+  Invoke-AwsChecked -Action "Putting DynamoDB rate-limit policy on $RoleName" -AwsArgs @("iam", "put-role-policy", "--role-name", $RoleName, "--policy-name", "logiclens-rate-limit-dynamodb", "--policy-document", "file://$RolePolicy") | Out-Null
 }
 elseif ($RateLimitTable) {
   Write-Warning "Using an existing Lambda role. Ensure it can write logs and dynamodb:GetItem/PutItem on $TableArn."
@@ -259,22 +308,11 @@ else {
 }
 
 if ($RateLimitTable) {
-  & $Aws dynamodb describe-table --table-name $RateLimitTable --region $Region *> $null
+  Invoke-AwsChecked -Action "Checking DynamoDB table $RateLimitTable" -AwsArgs @("dynamodb", "describe-table", "--table-name", $RateLimitTable, "--region", $Region) -AllowFailure | Out-Null
   if ($LASTEXITCODE -ne 0) {
-    & $Aws dynamodb create-table `
-      --table-name $RateLimitTable `
-      --attribute-definitions AttributeName=pk,AttributeType=S `
-      --key-schema AttributeName=pk,KeyType=HASH `
-      --billing-mode PAY_PER_REQUEST `
-      --region $Region | Out-Null
-    Assert-LastExitCode "Creating DynamoDB table $RateLimitTable"
-    & $Aws dynamodb wait table-exists --table-name $RateLimitTable --region $Region
-    Assert-LastExitCode "Waiting for DynamoDB table $RateLimitTable"
-    & $Aws dynamodb update-time-to-live `
-      --table-name $RateLimitTable `
-      --time-to-live-specification "Enabled=true,AttributeName=expires_at" `
-      --region $Region | Out-Null
-    Assert-LastExitCode "Enabling TTL on DynamoDB table $RateLimitTable"
+    Invoke-AwsChecked -Action "Creating DynamoDB table $RateLimitTable" -AwsArgs @("dynamodb", "create-table", "--table-name", $RateLimitTable, "--attribute-definitions", "AttributeName=pk,AttributeType=S", "--key-schema", "AttributeName=pk,KeyType=HASH", "--billing-mode", "PAY_PER_REQUEST", "--region", $Region) | Out-Null
+    Invoke-AwsChecked -Action "Waiting for DynamoDB table $RateLimitTable" -AwsArgs @("dynamodb", "wait", "table-exists", "--table-name", $RateLimitTable, "--region", $Region) -MaxAttempts 1 | Out-Null
+    Invoke-AwsChecked -Action "Enabling TTL on DynamoDB table $RateLimitTable" -AwsArgs @("dynamodb", "update-time-to-live", "--table-name", $RateLimitTable, "--time-to-live-specification", "Enabled=true,AttributeName=expires_at", "--region", $Region) | Out-Null
   }
 }
 
@@ -290,60 +328,26 @@ $Environment = @{
 $EnvironmentPath = Join-Path $BuildDir "lambda-environment.json"
 Write-Utf8NoBom -Path $EnvironmentPath -Value $Environment
 
-& $Aws lambda get-function --function-name $FunctionName --region $Region *> $null
+$FunctionCheck = Invoke-AwsChecked -Action "Checking Lambda function $FunctionName" -AwsArgs @("lambda", "get-function", "--function-name", $FunctionName, "--region", $Region) -AllowFailure
 if ($LASTEXITCODE -eq 0) {
-  & $Aws lambda update-function-code `
-    --function-name $FunctionName `
-    --zip-file "fileb://$ZipPath" `
-    --region $Region | Out-Null
-  Assert-LastExitCode "Updating Lambda function code for $FunctionName"
-  & $Aws lambda wait function-updated --function-name $FunctionName --region $Region
-  Assert-LastExitCode "Waiting for Lambda code update for $FunctionName"
-  & $Aws lambda update-function-configuration `
-    --function-name $FunctionName `
-    --runtime "python3.12" `
-    --handler "heart_transplant.beta_lambda.lambda_handler" `
-    --timeout 240 `
-    --memory-size 2048 `
-    --ephemeral-storage '{"Size":2048}' `
-    --environment "file://$EnvironmentPath" `
-    --region $Region | Out-Null
-  Assert-LastExitCode "Updating Lambda function configuration for $FunctionName"
+  Invoke-AwsChecked -Action "Updating Lambda function code for $FunctionName" -AwsArgs @("lambda", "update-function-code", "--function-name", $FunctionName, "--zip-file", "fileb://$ZipPath", "--region", $Region) | Out-Null
+  Invoke-AwsChecked -Action "Waiting for Lambda code update for $FunctionName" -AwsArgs @("lambda", "wait", "function-updated", "--function-name", $FunctionName, "--region", $Region) -MaxAttempts 1 | Out-Null
+  Invoke-AwsChecked -Action "Updating Lambda function configuration for $FunctionName" -AwsArgs @("lambda", "update-function-configuration", "--function-name", $FunctionName, "--runtime", "python3.12", "--handler", "heart_transplant.beta_lambda.lambda_handler", "--timeout", "240", "--memory-size", "2048", "--ephemeral-storage", '{"Size":2048}', "--environment", "file://$EnvironmentPath", "--region", $Region) | Out-Null
 }
 else {
-  & $Aws lambda create-function `
-    --function-name $FunctionName `
-    --runtime "python3.12" `
-    --role $RoleArn `
-    --handler "heart_transplant.beta_lambda.lambda_handler" `
-    --timeout 240 `
-    --memory-size 2048 `
-    --ephemeral-storage '{"Size":2048}' `
-    --zip-file "fileb://$ZipPath" `
-    --environment "file://$EnvironmentPath" `
-    --region $Region | Out-Null
-  Assert-LastExitCode "Creating Lambda function $FunctionName"
-  & $Aws lambda wait function-active --function-name $FunctionName --region $Region
-  Assert-LastExitCode "Waiting for Lambda function $FunctionName to become active"
+  Invoke-AwsChecked -Action "Creating Lambda function $FunctionName" -AwsArgs @("lambda", "create-function", "--function-name", $FunctionName, "--runtime", "python3.12", "--role", $RoleArn, "--handler", "heart_transplant.beta_lambda.lambda_handler", "--timeout", "240", "--memory-size", "2048", "--ephemeral-storage", '{"Size":2048}', "--zip-file", "fileb://$ZipPath", "--environment", "file://$EnvironmentPath", "--region", $Region) | Out-Null
+  Invoke-AwsChecked -Action "Waiting for Lambda function $FunctionName to become active" -AwsArgs @("lambda", "wait", "function-active", "--function-name", $FunctionName, "--region", $Region) -MaxAttempts 1 | Out-Null
 }
 
-& $Aws lambda get-function-url-config --function-name $FunctionName --region $Region *> $null
+$UrlCheck = Invoke-AwsChecked -Action "Checking Lambda Function URL for $FunctionName" -AwsArgs @("lambda", "get-function-url-config", "--function-name", $FunctionName, "--region", $Region) -AllowFailure
 if ($LASTEXITCODE -ne 0) {
-  & $Aws lambda create-function-url-config --function-name $FunctionName --auth-type NONE --region $Region | Out-Null
-  Assert-LastExitCode "Creating Lambda Function URL for $FunctionName"
+  Invoke-AwsChecked -Action "Creating Lambda Function URL for $FunctionName" -AwsArgs @("lambda", "create-function-url-config", "--function-name", $FunctionName, "--auth-type", "NONE", "--region", $Region) | Out-Null
 }
 
-$AddPermissionOutput = & $Aws lambda add-permission `
-  --function-name $FunctionName `
-  --statement-id "FunctionURLAllowPublicAccess" `
-  --action "lambda:InvokeFunctionUrl" `
-  --principal "*" `
-  --function-url-auth-type NONE `
-  --region $Region 2>&1
+$AddPermissionOutput = Invoke-AwsChecked -Action "Adding Function URL invoke permission for $FunctionName" -AwsArgs @("lambda", "add-permission", "--function-name", $FunctionName, "--statement-id", "FunctionURLAllowPublicAccess", "--action", "lambda:InvokeFunctionUrl", "--principal", "*", "--function-url-auth-type", "NONE", "--region", $Region) -AllowFailure
 if ($LASTEXITCODE -ne 0 -and (($AddPermissionOutput | Out-String) -notmatch "ResourceConflictException")) {
   throw "Failed to add Function URL invoke permission: $($AddPermissionOutput | Out-String)"
 }
 
-$FunctionUrl = & $Aws lambda get-function-url-config --function-name $FunctionName --query FunctionUrl --output text --region $Region
-Assert-LastExitCode "Reading Lambda Function URL for $FunctionName"
+$FunctionUrl = (Invoke-AwsChecked -Action "Reading Lambda Function URL for $FunctionName" -AwsArgs @("lambda", "get-function-url-config", "--function-name", $FunctionName, "--query", "FunctionUrl", "--output", "text", "--region", $Region) | Out-String).Trim()
 Write-Output $FunctionUrl
