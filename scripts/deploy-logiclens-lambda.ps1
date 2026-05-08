@@ -6,16 +6,92 @@ param(
   [string]$AllowedOrigins = $env:LOGICLENS_ALLOWED_ORIGINS,
   [string]$Region = $(if ($env:AWS_REGION) { $env:AWS_REGION } elseif ($env:AWS_DEFAULT_REGION) { $env:AWS_DEFAULT_REGION } else { "eu-central-1" }),
   [string]$PythonBin = $env:PYTHON_BIN,
-  [switch]$DryRun
+  [switch]$DryRun,
+  [switch]$NonInteractive,
+  [switch]$UseMemoryRateLimit
 )
 
 $ErrorActionPreference = "Stop"
 
 if (-not $FunctionName) { $FunctionName = "logiclens-beta-analyzer" }
 if (-not $RoleName) { $RoleName = "logiclens-beta-analyzer-role" }
-if ($null -eq $RateLimitTable) { $RateLimitTable = "logiclens-beta-rate-limit" }
+if ($env:LOGICLENS_USE_MEMORY_RATE_LIMIT -eq "1") { $UseMemoryRateLimit = $true }
+if ($UseMemoryRateLimit) {
+  $RateLimitTable = ""
+}
+elseif ([string]::IsNullOrWhiteSpace($RateLimitTable)) {
+  $RateLimitTable = "logiclens-beta-rate-limit"
+}
 if (-not $AllowedOrigins) { $AllowedOrigins = "https://maceip.github.io" }
 if ($env:LOGICLENS_DEPLOY_DRY_RUN -eq "1") { $DryRun = $true }
+
+function Read-Defaulted {
+  param(
+    [Parameter(Mandatory = $true)][string]$Prompt,
+    [string]$Default = ""
+  )
+  if ($NonInteractive) { return $Default }
+  $Suffix = $(if ($Default) { " [$Default]" } else { "" })
+  $Value = Read-Host "$Prompt$Suffix"
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $Default }
+  return $Value.Trim()
+}
+
+function Read-SecretString {
+  param(
+    [Parameter(Mandatory = $true)][string]$Prompt,
+    [string]$Existing = ""
+  )
+  if ($Existing -or $NonInteractive) { return $Existing }
+  $Secure = Read-Host $Prompt -AsSecureString
+  if ($Secure.Length -eq 0) { return "" }
+  $Ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
+  try {
+    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Ptr)
+  }
+  finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Ptr)
+  }
+}
+
+if (-not $NonInteractive) {
+  Write-Host "LogicLens Lambda deploy (Frankfurt / eu-central-1 by default)." -ForegroundColor Cyan
+  Write-Host "Press Enter to accept defaults. Secret values are not echoed." -ForegroundColor DarkGray
+}
+
+if (-not $env:AWS_ACCESS_KEY_ID) {
+  $env:AWS_ACCESS_KEY_ID = Read-Defaulted -Prompt "AWS_ACCESS_KEY_ID"
+}
+if (-not $env:AWS_SECRET_ACCESS_KEY) {
+  $env:AWS_SECRET_ACCESS_KEY = Read-SecretString -Prompt "AWS_SECRET_ACCESS_KEY"
+}
+if (-not $env:AWS_SESSION_TOKEN) {
+  $Token = Read-SecretString -Prompt "AWS_SESSION_TOKEN (optional)"
+  if ($Token) { $env:AWS_SESSION_TOKEN = $Token }
+}
+
+$Region = Read-Defaulted -Prompt "AWS region" -Default $Region
+$env:AWS_REGION = $Region
+$env:AWS_DEFAULT_REGION = $Region
+
+$AllowedOrigins = Read-Defaulted -Prompt "Allowed GitHub Pages origin" -Default $AllowedOrigins
+$FunctionName = Read-Defaulted -Prompt "Lambda function name" -Default $FunctionName
+$RoleName = Read-Defaulted -Prompt "IAM role name to create/use" -Default $RoleName
+
+if (-not $RoleArn) {
+  $RoleArnInput = Read-Defaulted -Prompt "Existing Lambda role ARN (optional; leave blank to create/use role name)" -Default ""
+  if ($RoleArnInput) { $RoleArn = $RoleArnInput }
+}
+
+if (-not $UseMemoryRateLimit) {
+  $RateLimitTable = Read-Defaulted -Prompt "DynamoDB rate-limit table" -Default $RateLimitTable
+  if ([string]::IsNullOrWhiteSpace($RateLimitTable)) {
+    $RateLimitTable = "logiclens-beta-rate-limit"
+  }
+}
+else {
+  Write-Warning "Using warm-runtime memory rate limiting because -UseMemoryRateLimit or LOGICLENS_USE_MEMORY_RATE_LIMIT=1 was set."
+}
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $BuildDir = Join-Path $Root ".lambda-build"
@@ -81,6 +157,7 @@ New-Item -ItemType Directory -Force $PackageDir | Out-Null
   --target $PackageDir `
   --python-version 3.12 `
   --python-platform x86_64-manylinux2014 `
+  --only-binary ":all:" `
   "pydantic>=2.11,<3" `
   "tree-sitter>=0.25,<0.26" `
   "tree-sitter-language-pack>=0.7,<1" `
@@ -105,7 +182,7 @@ if ($DryRun) {
   Write-Output "function_name=$FunctionName"
   Write-Output "role_name=$RoleName"
   Write-Output ("role_arn_override=" + $(if ($RoleArnOverrideSupplied) { "set" } else { "unset" }))
-  Write-Output ("rate_limit_table=" + $(if ($RateLimitTable) { $RateLimitTable } else { "memory-fallback" }))
+  Write-Output ("rate_limit_table=" + $(if ($RateLimitTable) { $RateLimitTable } else { "memory-fallback-explicit" }))
   Write-Output "python_bin=$PythonBin"
   Write-Output "uv=$Uv"
   Write-Output "zip_path=$ZipPath"
@@ -226,13 +303,16 @@ if ($LASTEXITCODE -ne 0) {
   & $Aws lambda create-function-url-config --function-name $FunctionName --auth-type NONE --region $Region | Out-Null
 }
 
-& $Aws lambda add-permission `
+$AddPermissionOutput = & $Aws lambda add-permission `
   --function-name $FunctionName `
   --statement-id "FunctionURLAllowPublicAccess" `
   --action "lambda:InvokeFunctionUrl" `
   --principal "*" `
   --function-url-auth-type NONE `
-  --region $Region *> $null
+  --region $Region 2>&1
+if ($LASTEXITCODE -ne 0 -and (($AddPermissionOutput | Out-String) -notmatch "ResourceConflictException")) {
+  throw "Failed to add Function URL invoke permission: $($AddPermissionOutput | Out-String)"
+}
 
 $FunctionUrl = & $Aws lambda get-function-url-config --function-name $FunctionName --query FunctionUrl --output text --region $Region
 Write-Output $FunctionUrl

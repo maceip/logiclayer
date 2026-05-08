@@ -5,7 +5,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FUNCTION_NAME="${LOGICLENS_LAMBDA_FUNCTION_NAME:-logiclens-beta-analyzer}"
 ROLE_NAME="${LOGICLENS_LAMBDA_ROLE_NAME:-logiclens-beta-analyzer-role}"
 ROLE_ARN_OVERRIDE="${LOGICLENS_LAMBDA_ROLE_ARN:-}"
-TABLE_NAME="${LOGICLENS_RATE_LIMIT_TABLE-logiclens-beta-rate-limit}"
+TABLE_NAME="${LOGICLENS_RATE_LIMIT_TABLE:-logiclens-beta-rate-limit}"
+if [[ "${LOGICLENS_USE_MEMORY_RATE_LIMIT:-0}" == "1" ]]; then
+  TABLE_NAME=""
+fi
 ALLOWED_ORIGINS="${LOGICLENS_ALLOWED_ORIGINS:-https://maceip.github.io}"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-central-1}}"
 BUILD_DIR="$ROOT/.lambda-build"
@@ -47,6 +50,7 @@ mkdir -p "$PACKAGE_DIR"
 uv pip install \
   --python "$PYTHON_BIN" \
   --target "$PACKAGE_DIR" \
+  --only-binary ":all:" \
   "pydantic>=2.11,<3" \
   "tree-sitter>=0.25,<0.26" \
   "tree-sitter-language-pack>=0.7,<1" \
@@ -66,7 +70,7 @@ if [[ "${LOGICLENS_DEPLOY_DRY_RUN:-0}" == "1" ]]; then
   echo "function_name=$FUNCTION_NAME"
   echo "role_name=$ROLE_NAME"
   echo "role_arn_override=$([[ -n "$ROLE_ARN_OVERRIDE" ]] && echo set || echo unset)"
-  echo "rate_limit_table=$([[ -n "$TABLE_NAME" ]] && echo "$TABLE_NAME" || echo memory-fallback)"
+  echo "rate_limit_table=$([[ -n "$TABLE_NAME" ]] && echo "$TABLE_NAME" || echo memory-fallback-explicit)"
   echo "python_bin=$PYTHON_BIN"
   echo "zip_path=$ZIP_PATH"
   exit 0
