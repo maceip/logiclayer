@@ -324,6 +324,7 @@ function addScore(scores, evidence, block, weight, label) {
 }
 
 function renderRepoResults(result) {
+  renderAssessment(result?.assessment);
   renderOperatorAnswers(result);
   const counts = countBy(state.surfaces, (surface) => surface.block);
   const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -357,6 +358,90 @@ function renderEmptyResults() {
   $("block-list").innerHTML = `<div class="block-pill"><strong>Waiting for analysis</strong><span>Submit 2-5 public GitHub repositories.</span></div>`;
   $("surface-table").innerHTML = `<tr><td colspan="4">No system analyzed yet.</td></tr>`;
   $("block-tree").innerHTML = `<div class="empty-card">No system tree yet.</div>`;
+  $("assessment-panel").innerHTML = `
+    <div class="empty-card">
+      <strong>No assessment yet.</strong>
+      <p>Run the commerce stack to see repo roles, entity/workflow answers, source citations, graph reasoning, and architecture Q&A.</p>
+    </div>`;
+}
+
+function renderAssessment(assessment) {
+  if (!assessment) {
+    $("assessment-panel").innerHTML = "";
+    return;
+  }
+  const project = assessment.project_understanding || {};
+  const workflow = (assessment.entity_workflows || [])[1] || (assessment.entity_workflows || [])[0] || {};
+  const qa = assessment.architecture_qa || [];
+  $("assessment-panel").innerHTML = `
+    <article class="assessment-hero">
+      <span class="eyebrow">multi-repo assessment</span>
+      <h3>${escapeHtml(assessment.headline || "System assessment")}</h3>
+      <p>${escapeHtml(assessment.summary || "")}</p>
+    </article>
+    <div class="assessment-grid">
+      <article class="assessment-card wide">
+        <span>Project understanding</span>
+        <strong>${escapeHtml(project.question || "What services/repos exist?")}</strong>
+        <p>${escapeHtml(project.answer || "")}</p>
+        <div class="repo-role-grid">${(project.repos || []).map(renderRepoRole).join("")}</div>
+      </article>
+      <article class="assessment-card">
+        <span>Entity / workflow</span>
+        <strong>${escapeHtml(workflow.question || "Trace the workflow")}</strong>
+        <p>${escapeHtml(workflow.answer || "")}</p>
+        ${renderEvidenceList(workflow.evidence || [])}
+      </article>
+      <article class="assessment-card">
+        <span>Code-grounded retrieval</span>
+        <strong>${escapeHtml(assessment.code_grounded_retrieval?.question || "Which files support this?")}</strong>
+        <p>${escapeHtml(assessment.code_grounded_retrieval?.answer || "")}</p>
+        ${renderEvidenceList(assessment.code_grounded_retrieval?.evidence || [])}
+      </article>
+      <article class="assessment-card">
+        <span>Graph reasoning</span>
+        <strong>${escapeHtml(assessment.graph_reasoning?.question || "What might be affected?")}</strong>
+        <p>${escapeHtml(assessment.graph_reasoning?.answer || "")}</p>
+        ${renderEvidenceList(assessment.graph_reasoning?.evidence || [])}
+      </article>
+      <article class="assessment-card">
+        <span>Architecture Q&A</span>
+        ${(qa || []).map(renderQaAnswer).join("")}
+      </article>
+    </div>`;
+}
+
+function renderRepoRole(role) {
+  return `
+    <div class="repo-role">
+      <strong>${escapeHtml(role.repo)}</strong>
+      <span>${escapeHtml(role.role)}</span>
+      <small>${escapeHtml(role.relationship || "")}</small>
+    </div>`;
+}
+
+function renderEvidenceList(items) {
+  const rows = (items || []).slice(0, 5);
+  if (!rows.length) return `<em>No evidence returned.</em>`;
+  return `<ul class="evidence-list">${rows.map(renderEvidenceItem).join("")}</ul>`;
+}
+
+function renderEvidenceItem(item) {
+  return `
+    <li>
+      <span>${escapeHtml(item.repo || "")}</span>
+      <strong>${escapeHtml(item.path || item.file_path || item.name || "")}</strong>
+      <small>${escapeHtml([item.block, formatRange(item.range)].filter(Boolean).join(" / "))}</small>
+    </li>`;
+}
+
+function renderQaAnswer(item) {
+  return `
+    <div class="qa-answer">
+      <strong>${escapeHtml(item.question || "")}</strong>
+      <p>${escapeHtml(item.answer || "")}</p>
+      ${renderEvidenceList(item.evidence || [])}
+    </div>`;
 }
 
 function renderOperatorAnswers(result) {

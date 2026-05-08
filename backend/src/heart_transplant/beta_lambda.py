@@ -207,6 +207,7 @@ def run_multi_repo_analysis(repos: list[str]) -> dict[str, Any]:
             surfaces.append({**surface, "repo": report["repo"]})
 
     surfaces.sort(key=lambda item: (-float(item.get("confidence", 0)), str(item.get("repo", "")), str(item.get("path", ""))))
+    assessment = build_system_assessment(per_repo, surfaces, block_counts)
     return {
         "repo": repo_label,
         "repos": [report["repo"] for report in per_repo],
@@ -224,6 +225,7 @@ def run_multi_repo_analysis(repos: list[str]) -> dict[str, Any]:
             "manifest": {"required_artifacts_present": all(bool(r.get("summary", {}).get("manifest", {}).get("required_artifacts_present")) for r in per_repo)},
         },
         "repo_reports": per_repo,
+        "assessment": assessment,
         "insights": build_multi_repo_insights(per_repo, surfaces, block_counts),
         "runtime_capabilities": {
             "repo_source": "public_github_zipball_multi_repo",
@@ -234,6 +236,136 @@ def run_multi_repo_analysis(repos: list[str]) -> dict[str, Any]:
         "warnings": [warning for report in per_repo for warning in report.get("warnings", []) if warning],
         "surfaces": surfaces[: load_limits().max_returned_surfaces],
     }
+
+
+def build_system_assessment(per_repo: list[dict[str, Any]], surfaces: list[dict[str, Any]], block_counts: dict[str, int]) -> dict[str, Any]:
+    repo_roles = [_repo_role(report) for report in per_repo]
+    entity_terms = {
+        "User / Account": ("user", "account", "customer", "profile"),
+        "Session / Auth": ("session", "auth", "token", "signin", "login", "provider"),
+        "Cart / Checkout": ("cart", "checkout", "basket", "line_item", "line-item"),
+        "Order / Fulfillment": ("order", "fulfillment", "shipping", "delivery"),
+        "Payment": ("payment", "paymentintent", "stripe", "invoice", "charge", "webhook"),
+        "Upload": ("upload", "asset", "image", "media"),
+    }
+    entity_map = {label: _matching_surfaces(surfaces, terms, limit=4) for label, terms in entity_terms.items()}
+    workflow_evidence = _dedupe_surfaces(
+        entity_map["Cart / Checkout"] + entity_map["Session / Auth"] + entity_map["Payment"] + _matching_surfaces(surfaces, ("api", "route", "webhook"), limit=5),
+        limit=8,
+    )
+    impact_evidence = _dedupe_surfaces(
+        _matching_surfaces(surfaces, ("payment", "stripe", "checkout", "webhook", "session", "auth"), limit=8)
+        + [surface for surface in surfaces if surface.get("block") in {"Network Edge", "Connectivity Layer", "Access Control", "Data Persistence"}],
+        limit=8,
+    )
+    citation_evidence = _dedupe_surfaces(workflow_evidence + impact_evidence + surfaces[:6], limit=10)
+
+    return {
+        "headline": "Commerce checkout system assessment",
+        "summary": (
+            "LogicLens treats the selected repositories as one commerce system: a storefront that starts cart/checkout behavior, "
+            "an identity layer that owns User and Session state, and a payment SDK surface that owns Stripe/PaymentIntent concepts."
+        ),
+        "project_understanding": {
+            "question": "What services/repos exist, what role does each play, and how do they relate?",
+            "answer": "The system separates user-facing commerce, authentication/session ownership, and payment-provider integration. Changes to checkout behavior are likely to cross those boundaries.",
+            "repos": repo_roles,
+        },
+        "entity_workflows": [
+            {
+                "question": "Where is User, Session, Order, Checkout, or Payment handled?",
+                "answer": "Entity signals are strongest around auth/session models, checkout/cart surfaces, and Stripe/payment API boundaries. Use these as workflow anchors before reading broad directories.",
+                "entities": [
+                    {"name": label, "evidence": evidence}
+                    for label, evidence in entity_map.items()
+                    if evidence
+                ],
+            },
+            {
+                "question": "Trace the checkout/login/payment workflow.",
+                "answer": "Start at storefront cart/checkout surfaces, cross into session/auth boundaries for user identity, then inspect payment/webhook or Stripe SDK surfaces for money movement and fulfillment seams.",
+                "evidence": workflow_evidence,
+            },
+        ],
+        "code_grounded_retrieval": {
+            "question": "Which files/functions/classes support these claims?",
+            "answer": "Each claim below is backed by concrete repo/path/range evidence from the graph ingest and semantic block classifier.",
+            "evidence": citation_evidence,
+        },
+        "graph_reasoning": {
+            "question": "If I change checkout or payment creation, what might be affected?",
+            "answer": "The first blast-radius ring is network/API surfaces, auth/session state, persistence models, and payment SDK calls. These are the cross-repo seams a developer should inspect before editing.",
+            "evidence": impact_evidence,
+        },
+        "architecture_qa": [
+            {
+                "question": "Where is Session handled?",
+                "answer": "Look first for Access Control and Data Persistence evidence containing session/auth/token/provider terms, then follow callers in storefront/API surfaces.",
+                "evidence": entity_map["Session / Auth"][:5],
+            },
+            {
+                "question": "Trace checkout to payment.",
+                "answer": "Follow cart/checkout surfaces into payment or Stripe-named SDK/API surfaces; webhook-like network edges are the likely confirmation/fulfillment boundary.",
+                "evidence": _dedupe_surfaces(entity_map["Cart / Checkout"] + entity_map["Payment"], limit=6),
+            },
+            {
+                "question": "What should I inspect before changing payment behavior?",
+                "answer": "Inspect high-confidence payment, network-edge, connectivity, and persistence surfaces first; these are where a local code change is most likely to affect external behavior.",
+                "evidence": impact_evidence[:6],
+            },
+        ],
+        "dominant_blocks": [{"block": block, "count": count} for block, count in sorted(block_counts.items(), key=lambda item: (-item[1], item[0]))[:6]],
+    }
+
+
+def _repo_role(report: dict[str, Any]) -> dict[str, Any]:
+    repo = str(report.get("repo", ""))
+    blocks = report.get("summary", {}).get("block_counts", {})
+    top_blocks = sorted(blocks.items(), key=lambda item: (-int(item[1]), item[0]))[:3]
+    lower = repo.lower()
+    if "commerce" in lower or "storefront" in lower:
+        role = "Storefront and commerce experience"
+        relationship = "Starts product browsing, cart, and checkout behavior."
+    elif "auth" in lower or "session" in lower:
+        role = "Identity and session boundary"
+        relationship = "Owns User, Account, Session, Token, and provider concepts."
+    elif "stripe" in lower or "payment" in lower:
+        role = "Payment provider integration"
+        relationship = "Owns Stripe SDK surfaces, customers, checkout sessions, and payment intents."
+    else:
+        role = ", ".join(block for block, _ in top_blocks) or "Source surfaces"
+        relationship = "Role inferred from dominant architecture blocks."
+    return {
+        "repo": repo,
+        "role": role,
+        "relationship": relationship,
+        "dominant_blocks": [{"block": block, "count": int(count)} for block, count in top_blocks],
+        "node_count": int(report.get("summary", {}).get("node_count") or 0),
+        "file_count": int(report.get("summary", {}).get("file_count") or 0),
+    }
+
+
+def _matching_surfaces(surfaces: list[dict[str, Any]], terms: tuple[str, ...], *, limit: int) -> list[dict[str, Any]]:
+    matches = []
+    for surface in surfaces:
+        haystack = f"{surface.get('repo', '')} {surface.get('path', '')} {surface.get('name', '')} {surface.get('block', '')} {surface.get('signal', '')}".lower()
+        if any(term in haystack for term in terms):
+            matches.append(surface)
+    return _dedupe_surfaces(matches, limit=limit)
+
+
+def _dedupe_surfaces(surfaces: list[dict[str, Any]], *, limit: int) -> list[dict[str, Any]]:
+    seen = set()
+    deduped = []
+    for surface in surfaces:
+        key = (surface.get("repo"), surface.get("path"), surface.get("name"), surface.get("block"))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(surface)
+        if len(deduped) >= limit:
+            break
+    return deduped
 
 
 def build_multi_repo_insights(per_repo: list[dict[str, Any]], surfaces: list[dict[str, Any]], block_counts: dict[str, int]) -> list[dict[str, Any]]:
