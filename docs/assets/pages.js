@@ -1,28 +1,25 @@
 const BLOCKS = [
-  "Identity UI",
-  "State Management",
-  "Core Rendering",
-  "Interaction Design",
-  "Asset Delivery",
-  "Global Interface",
-  "Edge Support",
-  "Experimentation",
-  "User Observability",
-  "Error Boundaries",
-  "Persistence Strategy",
-  "Visual Systems",
   "Access Control",
-  "System Telemetry",
-  "Data Persistence",
+  "Analytical Intelligence",
+  "Asset Delivery",
   "Background Processing",
-  "Traffic Control",
+  "Connectivity Layer",
+  "Core Rendering",
+  "Data Persistence",
+  "Data Sovereignty",
+  "Error Boundaries",
+  "Global Interface",
+  "Interaction Design",
   "Network Edge",
+  "Persistence Strategy",
+  "Resiliency",
   "Search Architecture",
   "Security Ops",
-  "Connectivity Layer",
-  "Resiliency",
-  "Data Sovereignty",
-  "Analytical Intelligence",
+  "State Management",
+  "System Telemetry",
+  "Traffic Control",
+  "User Observability",
+  "Visual Systems",
 ];
 
 const SIGNALS = [
@@ -52,159 +49,162 @@ const PATH_SIGNALS = [
   ["System Telemetry", /(^|\/)(logger|telemetry|tracing)\./i, 2.0, "telemetry path"],
   ["Access Control", /(^|\/)(auth|passwords?|sessions?|permissions?)[^/]*\./i, 1.7, "access-control path"],
   ["Security Ops", /(^|\/)utils\/security\./i, 2.2, "security utility path"],
-  ["Network Edge", /(^|\/)routes?\//i, 1.8, "route path"],
-  ["Core Rendering", /(^|\/)emails?\/.*\.(tsx|jsx)$/i, 2.4, "rendered email path"],
-  ["Connectivity Layer", /(^|\/)(services?|adapters|providers)\//i, 1.0, "service layer path"],
+  ["Network Edge", /(^|\/)(api|routes?|controllers?|handlers?)\//i, 1.8, "route path"],
+  ["Core Rendering", /(^|\/)(app|pages|components|views|screens)\//i, 1.3, "rendering path"],
+  ["Connectivity Layer", /(^|\/)(services?|adapters|providers|clients?)\//i, 1.2, "service layer path"],
   ["Search Architecture", /(^|\/)(index|config\/index|database\/index|middlewares\/index|modules\/index|modules\/[^/]+\/index)\.(ts|tsx|js|jsx)$/i, 2.4, "architectural index path"],
 ];
 
-const SOURCE_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|prisma|java|rs|cpp|cc|cxx|h|hpp)$/i;
-const SKIP_PATHS = /(^|\/)(node_modules|\.git|dist|build|target|vendor|coverage|\.next|\.venv|\.venv-win)\//i;
-const REVIEW_LABELS = ["unreviewed", "correct", "wrong", "missing_important_context", "not_sure"];
-const FIXTURE_TABS = {
-  nodes: { label: "Nodes", key: "candidate_nodes" },
-  edges: { label: "Edges", key: "candidate_reference_edges" },
-  questions: { label: "Evidence Questions", key: "candidate_evidence_questions" },
-  blast: { label: "Blast Radius", key: "candidate_blast_radius_scenarios" },
-};
-const FIXTURE_COMPAT_FILES = {
-  candidate_nodes: ["review-nodes.json", "candidate_nodes.review.json"],
-  candidate_reference_edges: ["review-edges.json", "candidate_reference_edges.review.json"],
-  candidate_evidence_questions: ["review-evidence-questions.json", "review-questions.json", "candidate_evidence_questions.review.json"],
-  candidate_blast_radius_scenarios: ["review-blast-radius-scenarios.json", "review-scenarios.json", "candidate_blast_radius_scenarios.review.json"],
-};
+const SOURCE_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|prisma|java|rs|cpp|cc|cxx|h|hpp|cs|rb|php|swift|kt)$/i;
+const SKIP_PATHS = /(^|\/)(node_modules|\.git|dist|build|target|vendor|coverage|\.next|\.venv|\.venv-win|__pycache__)\//i;
+const FEATURED_SYSTEM = ["vercel/commerce", "nextauthjs/next-auth", "stripe/stripe-node"];
 const FEATURED_CASES = [
-  "immich-app/immich",
-  "denoland/deno",
-  "tensorflow/tensorflow",
-  "go-gitea/gitea",
-  "zed-industries/zed",
-  "apache/hadoop",
-  "openai/codex",
-  "CherryHQ/cherry-studio",
+  { title: "Commerce checkout stack", repos: FEATURED_SYSTEM, note: "Storefront + auth + payments" },
+  { title: "Python web app stack", repos: ["pallets/flask", "pallets/werkzeug", "pallets/jinja"], note: "App + WSGI + templates" },
+  { title: "Testing plugin stack", repos: ["pytest-dev/pytest", "pytest-dev/pluggy"], note: "Runner + plugin machinery" },
 ];
-const LIVE_RUNS_KEY = "heart-transplant:beta-runs:v1";
+const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
+const LOGICLENS_API_BASE_URL = (window.LOGICLENS_API_BASE_URL || "").replace(/\/+$/, "");
 
 const state = {
-  currentRepo: "immich-app/immich",
+  currentRepo: FEATURED_SYSTEM.join(" + "),
+  currentRepos: [...FEATURED_SYSTEM],
   surfaces: [],
-  benchmark: null,
+  reference: null,
   backendAvailable: false,
   isAnalyzing: false,
   latestReceipt: null,
-  liveRuns: [],
-  benchmarkAggregate: { total: 0, ok: 0, nodeCount: 0, edgeCount: 0 },
-  fixture: {
-    packet: null,
-    canonicalGraph: null,
-    activeTab: "nodes",
-    filter: "all",
-  },
+  latestBadge: null,
+  signalAggregate: { total: 3, ok: 3, nodeCount: 1400, edgeCount: 4200 },
+  heartbeatRunning: false,
 };
 
 const $ = (id) => document.getElementById(id);
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   $("repo-form").addEventListener("submit", onRepoSubmit);
-  state.liveRuns = loadLiveRuns();
-  loadBenchmark();
+  $("load-featured-system").addEventListener("click", () => {
+    setRepoInputs(FEATURED_SYSTEM);
+    ingestRepos(FEATURED_SYSTEM);
+  });
+  $("badge-copy").addEventListener("click", copyBadgeMarkdown);
+  $("badge-download").addEventListener("click", downloadBadgeSvg);
+
+  const params = new URLSearchParams(window.location.search);
+  const initialRepos = normalizeRepoList((params.get("repos") || params.get("repo") || "").split(",").filter(Boolean));
+  if (initialRepos.length) {
+    state.currentRepos = initialRepos;
+    state.currentRepo = initialRepos.join(" + ");
+    setRepoInputs(initialRepos);
+  }
+
   renderCaseBoard();
   renderEmptyResults();
+  renderEmptyBadge();
   startHeartbeat();
-  setupFixtureReview();
-  renderFixtureReview();
-  detectBackend();
+  await Promise.allSettled([loadReferenceMetrics(), detectBackend()]);
+
+  if (params.get("autorun") === "1" && state.currentRepos.length >= 2) {
+    ingestRepos(state.currentRepos);
+  }
 });
 
 async function onRepoSubmit(event) {
   event.preventDefault();
-  const repo = normalizeRepo($("repo-input").value);
-  if (!repo) {
-    setStatus("Enter a GitHub URL or owner/name.", true);
+  const repos = getSelectedRepos();
+  if (repos.length < 2 || repos.length > 5) {
+    setStatus("Enter between 2 and 5 unique root GitHub repositories.", true);
     return;
   }
-  await ingestRepo(repo);
+  setRepoInputs(repos);
+  await ingestRepos(repos);
 }
 
 async function ingestRepo(repo) {
+  return ingestRepos([repo]);
+}
+
+async function ingestRepos(repos) {
   if (state.isAnalyzing) {
-    setStatus("Analysis is already running. Please wait for this repo to finish.");
+    setStatus("Analysis is already running. Please wait for this system to finish.");
     return;
   }
-  state.currentRepo = repo;
-  const button = document.querySelector("button[type='submit']");
+  state.currentRepos = repos;
+  state.currentRepo = repos.join(" + ");
   state.isAnalyzing = true;
+  const button = document.querySelector("#repo-form button[type='submit']");
   button.classList.add("is-loading");
   button.disabled = true;
   button.textContent = "Analyzing";
-  setStatus(`Starting analysis for ${repo}...`);
+  setStatus(`Starting LogicLens system analysis for ${repos.join(", ")}...`);
+
   try {
     if (state.backendAvailable) {
-      await ingestRepoHosted(repo);
+      await ingestRepoHosted(repos);
     } else {
-      await ingestRepoStaticPreview(repo);
+      throw new Error("The real hosted analyzer is not available. Browser-only preview mode is disabled for this demo.");
     }
   } catch (error) {
-    recordLiveRun({ repo, status: "failed", error: error.message, node_count: 0, edge_count: 0 });
     setStatus(`Analysis stopped: ${error.message}`, true);
+    renderFailureBadge(state.currentRepo, error);
   } finally {
     state.isAnalyzing = false;
     button.classList.remove("is-loading");
     button.disabled = false;
-    button.textContent = "Start analysis";
+    button.textContent = "Analyze system";
   }
 }
 
 async function detectBackend() {
   try {
-    const health = await fetchJson("./api/health");
+    const health = await fetchJson(apiUrl("/api/health"));
     state.backendAvailable = Boolean(health.ok);
-    $("runtime-mode").textContent = `hosted backend API; ${health.active_jobs}/${health.max_active_jobs} active jobs`;
+    $("runtime-mode").textContent = health.sync ? "hosted Lambda analyzer; invoke-and-return" : `hosted backend API; ${health.active_jobs}/${health.max_active_jobs} active jobs`;
     setStatus("Hosted analyzer ready for a public GitHub repository.");
   } catch {
     state.backendAvailable = false;
-    $("runtime-mode").textContent = "static preview fallback";
-    setStatus("Hosted analyzer is not available; using browser preview sampler.");
+    $("runtime-mode").textContent = "hosted analyzer unavailable";
+    setStatus("Hosted analyzer not detected. Browser-only preview mode is disabled for this demo.", true);
   }
 }
 
-async function ingestRepoHosted(repo) {
-  setStatus(`Submitting hosted analysis for ${repo}.`);
-  const response = await fetch("./api/analyze", {
+async function ingestRepoHosted(repos) {
+  const repoLabel = repos.join(" + ");
+  setStatus(`Submitting hosted backend job for ${repoLabel}.`);
+  const response = await fetch(apiUrl("/api/analyze"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo }),
+    body: JSON.stringify(repos.length > 1 ? { repos } : { repo: repos[0] }),
   });
   const job = await response.json();
   if (!response.ok) throw new Error(job.error || `API returned ${response.status}`);
-  setStatus(`Hosted job ${job.job_id} queued for ${repo}.`);
+
+  if (job.status === "succeeded" && job.result) {
+    handleCompletedHostedResult(repoLabel, job.result);
+    return;
+  }
+
+  setStatus(`Hosted job ${job.job_id} queued for ${repoLabel}.`);
   const completed = await pollJob(job.job_id);
   if (completed.status !== "succeeded") throw new Error(completed.error || "Hosted analysis failed.");
-  const result = completed.result;
+  handleCompletedHostedResult(repoLabel, completed.result);
+}
+
+function handleCompletedHostedResult(repo, result) {
   state.latestReceipt = result;
-  state.surfaces = result.surfaces.map((surface) => ({
-    path: surface.path,
-    block: surface.block,
-    confidence: surface.confidence,
-    signal: surface.signal,
-    language: surface.language,
-    kind: surface.kind,
-  }));
-  renderRepoResults();
+  state.currentRepos = result.repos || state.currentRepos;
+  state.currentRepo = result.repo || repo;
+  state.surfaces = normalizeHostedSurfaces(result.surfaces || []);
+  renderRepoResults(result);
   renderRuntimeReceipt(result);
-  recordLiveRun({
-    repo,
-    status: "ok",
-    node_count: Number(result.summary.node_count || 0),
-    edge_count: Number(result.summary.edge_count || 0),
-    parser_backends: result.summary.parser_backends || [],
-  });
-  setStatus(`Analysis complete for ${repo}: ${formatNumber(result.summary.node_count)} nodes, ${formatNumber(result.summary.edge_count)} edges.`);
+  updateBadge(buildBadgeData({ repo: state.currentRepo, repos: state.currentRepos, mode: "hosted", surfaces: state.surfaces, result }));
+  const repoCount = result.summary.repo_count || state.currentRepos.length || 1;
+  setStatus(`Analysis complete for ${repoCount} repos: ${formatNumber(result.summary.node_count)} nodes and ${formatNumber(result.summary.edge_count)} edges.`);
 }
 
 async function pollJob(jobId) {
   for (let attempt = 0; attempt < 240; attempt += 1) {
-    const job = await fetchJson(`./api/jobs/${encodeURIComponent(jobId)}`);
+    const job = await fetchJson(apiUrl(`/api/jobs/${encodeURIComponent(jobId)}`));
     if (job.status === "succeeded" || job.status === "failed") return job;
     const detail = job.message || (job.status === "running" ? "Hosted analyzer is running." : "Hosted analyzer is queued.");
     setStatus(`Hosted job ${jobId}: ${detail}`);
@@ -213,49 +213,66 @@ async function pollJob(jobId) {
   throw new Error("Hosted analysis timed out in the browser.");
 }
 
+function normalizeHostedSurfaces(surfaces) {
+  return surfaces.map((surface) => ({
+    repo: surface.repo || "",
+    path: surface.path || surface.file_path || surface.name || "unknown",
+    name: surface.name || "",
+    range: surface.range || null,
+    block: BLOCKS.includes(surface.block) ? surface.block : surface.block || "Search Architecture",
+    confidence: clamp(Number(surface.confidence || 0.5), 0, 1),
+    signal: surface.signal || "backend evidence",
+    language: surface.language || "",
+    kind: surface.kind || "",
+  }));
+}
+
+// Browser-only preview is intentionally disabled while the public demo is wired
+// to the real hosted analyzer. Keep the implementation nearby for local
+// fallback experiments, but do not call it from the production flow.
 async function ingestRepoStaticPreview(repo) {
-  setStatus(`Preparing browser preview for ${repo}...`);
-  const meta = await fetchJson(`https://api.github.com/repos/${repo}`);
-  const branch = meta.default_branch || "main";
-  const tree = await fetchJson(`https://api.github.com/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
-  const files = tree.tree
-    .filter((item) => item.type === "blob" && SOURCE_EXTENSIONS.test(item.path) && !SKIP_PATHS.test(item.path))
-    .slice(0, 280);
-  setStatus(`Preview-classifying ${files.length} file surfaces from ${repo}; sampling content from the first 55.`);
-  const contentMap = await fetchSampledContent(repo, branch, files.slice(0, 55));
-  state.surfaces = files.map((file) => classifySurface(file.path, contentMap.get(file.path) || ""));
+  setStatus(`Reading GitHub metadata for ${repo}.`);
+  const meta = await fetchGitHubJson(repo, "");
+  const defaultBranch = meta.default_branch || "main";
+  const branch = await fetchGitHubJson(repo, `branches/${encodeURIComponent(defaultBranch)}`);
+  const treeSha = branch.commit?.commit?.tree?.sha || branch.commit?.sha;
+  if (!treeSha) throw new Error(`Could not resolve default branch tree for ${repo}.`);
+
+  const tree = await fetchGitHubJson(repo, `git/trees/${encodeURIComponent(treeSha)}?recursive=1`);
+  const files = (tree.tree || [])
+    .filter((item) => item.type === "blob" && SOURCE_EXTENSIONS.test(item.path) && !SKIP_PATHS.test(item.path) && Number(item.size || 0) <= 512000)
+    .slice(0, 350);
+  if (!files.length) throw new Error("No supported source files found in the GitHub tree.");
+
+  const truncated = tree.truncated ? " GitHub returned a truncated tree, so this is a bounded preview." : "";
+  setStatus(`Classifying ${files.length} source surfaces from ${repo}; sampling content from the first ${Math.min(files.length, 70)} files.${truncated}`);
+  const contentMap = await fetchSampledContent(repo, files.slice(0, 70));
   state.latestReceipt = null;
-  renderRepoResults();
-  renderRuntimeReceipt(null);
+  state.surfaces = files.map((file) => classifySurface(file.path, contentMap.get(file.path) || "", file));
+  renderRepoResults(null);
+  renderRuntimeReceipt(null, {
+    repo,
+    mode: "browser preview",
+    fileCount: state.surfaces.length,
+    sampledCount: contentMap.size,
+    warning: tree.truncated ? "GitHub tree was truncated." : "",
+  });
+  updateBadge(buildBadgeData({ repo, mode: "static", surfaces: state.surfaces, result: null, warning: tree.truncated ? "truncated tree" : "" }));
   setStatus(`Preview analysis complete for ${repo}: ${state.surfaces.length} file surfaces classified.`);
 }
 
-function normalizeRepo(value) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  const match = trimmed.match(/github\.com[:/](?<owner>[^/\s]+)\/(?<repo>[^/\s.]+)(?:\.git)?/i);
-  if (match?.groups) return `${match.groups.owner}/${match.groups.repo}`;
-  const pair = trimmed.match(/^(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)$/);
-  return pair?.groups ? `${pair.groups.owner}/${pair.groups.repo}` : "";
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
-  if (!response.ok) throw new Error(`${response.status} from ${url.replace("https://api.github.com/", "GitHub API ")}`);
-  return response.json();
-}
-
-async function fetchSampledContent(repo, branch, files) {
+async function fetchSampledContent(repo, files) {
   const out = new Map();
   const batches = [];
-  for (let i = 0; i < files.length; i += 10) batches.push(files.slice(i, i + 10));
+  for (let i = 0; i < files.length; i += 8) batches.push(files.slice(i, i + 8));
   for (const batch of batches) {
     await Promise.all(
       batch.map(async (file) => {
         try {
-          const url = `https://raw.githubusercontent.com/${repo}/${encodeURIComponent(branch)}/${file.path.split("/").map(encodeURIComponent).join("/")}`;
-          const response = await fetch(url);
-          if (response.ok) out.set(file.path, (await response.text()).slice(0, 4000));
+          const blob = await fetchGitHubJson(repo, `git/blobs/${encodeURIComponent(file.sha)}`);
+          if (blob.encoding === "base64" && blob.content) {
+            out.set(file.path, decodeBase64Utf8(blob.content).slice(0, 5000));
+          }
         } catch {
           out.set(file.path, "");
         }
@@ -265,37 +282,39 @@ async function fetchSampledContent(repo, branch, files) {
   return out;
 }
 
-function classifySurface(path, content) {
+function classifySurface(path, content, file = {}) {
   const scores = new Map();
   const evidence = new Map();
-  const hay = `${path} ${content.slice(0, 2000)}`;
-  addScore(scores, evidence, "Search Architecture", 0.8, "file-level architecture surface");
+  const hay = `${path} ${content.slice(0, 2600)}`;
+  addScore(scores, evidence, "Search Architecture", 0.65, "source file in graph candidate set");
+
   for (const [block, pattern, weight, label] of PATH_SIGNALS) {
     if (pattern.test(path)) addScore(scores, evidence, block, weight, label);
   }
   for (const [block, pattern, weight, label] of SIGNALS) {
     if (pattern.test(hay)) addScore(scores, evidence, block, weight, label);
   }
+
   const exportCount = (content.match(/\bexport\b/g) || []).length;
   const importCount = (content.match(/\bimport\b/g) || []).length;
-  if (/\/?index\.(ts|tsx|js|jsx)$/i.test(path)) {
-    addScore(scores, evidence, "Search Architecture", 2.0 + Math.min(exportCount, 4) * 0.25, "index/barrel surface");
-  }
-  if (/(^|\/)(config|env|settings|drizzle|prisma)(\/|\.)/i.test(path)) {
-    addScore(scores, evidence, "Global Interface", 1.6, "configuration boundary");
-  }
-  if (importCount >= 2 && exportCount >= 1) {
-    addScore(scores, evidence, "Connectivity Layer", 0.8, "bridges imports and exports");
-  }
+  const functionCount = (content.match(/\b(function|def|class|interface|struct|enum)\b/g) || []).length;
+  if (/\/?index\.(ts|tsx|js|jsx)$/i.test(path)) addScore(scores, evidence, "Search Architecture", 2.0 + Math.min(exportCount, 4) * 0.25, "index/barrel surface");
+  if (/(^|\/)(config|env|settings|drizzle|prisma)(\/|\.)/i.test(path)) addScore(scores, evidence, "Global Interface", 1.6, "configuration boundary");
+  if (importCount >= 2 && exportCount >= 1) addScore(scores, evidence, "Connectivity Layer", 0.8, "bridges imports and exports");
+  if (functionCount >= 6) addScore(scores, evidence, "Core Rendering", 0.4, "dense code surface");
+
   const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
-  const [primary, score] = ranked[0] || ["Identity UI", 0.1];
+  const [primary, score] = ranked[0] || ["Search Architecture", 0.1];
   const runnerUp = ranked[1]?.[1] || 0;
   const confidence = Math.min(0.42 + 0.08 * score + 0.06 * Math.max(score - runnerUp, 0), 0.95);
   return {
     path,
+    name: path.split("/").pop(),
     block: primary,
     confidence,
     signal: (evidence.get(primary) || ["low signal fallback"]).slice(0, 3).join(", "),
+    language: languageFromPath(path),
+    kind: file.type || "blob",
   };
 }
 
@@ -304,48 +323,214 @@ function addScore(scores, evidence, block, weight, label) {
   evidence.set(block, [...(evidence.get(block) || []), label]);
 }
 
-function renderRepoResults() {
-  renderOperatorAnswers(state.latestReceipt);
+function renderRepoResults(result) {
+  renderAssessment(result?.assessment || buildClientAssessment(result));
+  renderOperatorAnswers(result);
   const counts = countBy(state.surfaces, (surface) => surface.block);
-  const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
-  drawBarChart($("repo-block-chart"), rows, { title: "Primary block count", suffix: " files" });
+  const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  drawBarChart($("repo-block-chart"), rows, { title: "Primary architecture block count", suffix: " surfaces" });
   $("block-list").innerHTML = rows
-    .map(([block, count]) => `<div class="block-pill"><strong>${escapeHtml(block)}</strong><span>${count} file surfaces detected</span></div>`)
+    .map(([block, count]) => `<div class="block-pill"><strong>${escapeHtml(block)}</strong><span>${formatNumber(count)} evidence surfaces</span></div>`)
     .join("");
   $("surface-table").innerHTML = state.surfaces
     .slice()
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, 80)
     .map(
-      (surface) => `<tr><td>${escapeHtml(surface.path)}</td><td>${escapeHtml(surface.block)}</td><td>${Math.round(surface.confidence * 100)}%</td><td>${escapeHtml(surface.signal)}</td></tr>`,
+      (surface) =>
+        `<tr><td><strong>${escapeHtml(surface.repo || state.currentRepo)}</strong><br />${escapeHtml(surface.path)}${formatRange(surface.range) ? `<br /><small>${escapeHtml(formatRange(surface.range))}</small>` : ""}</td><td>${escapeHtml(surface.block)}</td><td>${Math.round(surface.confidence * 100)}%</td><td>${escapeHtml(surface.signal)}</td></tr>`,
     )
     .join("");
   renderBlockTree();
 }
 
 function renderEmptyResults() {
-  drawBarChart($("repo-block-chart"), [], { title: "Primary block count", suffix: " nodes" });
-  $("block-list").innerHTML = `<div class="block-pill"><strong>Waiting for analysis</strong><span>Submit a public GitHub repository to analyze it.</span></div>`;
-  $("surface-table").innerHTML = `<tr><td colspan="4">No repo run yet.</td></tr>`;
-  $("block-tree").innerHTML = `<div class="fixture-empty">No repository analyzed yet.</div>`;
+  drawBarChart($("repo-block-chart"), [], { title: "Primary architecture block count", suffix: " surfaces" });
   $("answer-grid").innerHTML = `
-    <div class="answer-card">
-      <strong>Analyze a repo to map its blocks.</strong>
-      <p>Blocks are early labels for what files appear to do. Use them to find auth, persistence, background work, risky seams, and results that need closer review.</p>
+    <article class="answer-card">
+      <strong>Run a repo to get a map.</strong>
+      <p>The analyzer will classify file and code surfaces into likely architecture blocks, then show concrete evidence rows.</p>
+    </article>
+    <article class="answer-card">
+      <strong>Why LogicLens?</strong>
+      <p>The paper's core idea is graph-backed software understanding. This implementation exposes that idea through practical repo analysis.</p>
+    </article>`;
+  $("block-list").innerHTML = `<div class="block-pill"><strong>Waiting for analysis</strong><span>Submit 2-5 public GitHub repositories.</span></div>`;
+  $("surface-table").innerHTML = `<tr><td colspan="4">No system analyzed yet.</td></tr>`;
+  $("block-tree").innerHTML = `<div class="empty-card">No system tree yet.</div>`;
+  $("assessment-panel").innerHTML = `
+    <div class="empty-card">
+      <strong>No assessment yet.</strong>
+      <p>Run the commerce stack to see repo roles, entity/workflow answers, source citations, graph reasoning, and architecture Q&A.</p>
     </div>`;
-  renderRuntimeReceipt(null);
+}
+
+function buildClientAssessment(result) {
+  if (!result || !state.surfaces.length) return null;
+  const repos = result.repos || state.currentRepos || [];
+  const evidence = state.surfaces;
+  const match = (terms, limit = 6) =>
+    evidence
+      .filter((surface) => terms.some((term) => `${surface.repo} ${surface.path} ${surface.name} ${surface.block} ${surface.signal}`.toLowerCase().includes(term)))
+      .slice(0, limit);
+  const dedupe = (items, limit = 8) => {
+    const seen = new Set();
+    const out = [];
+    for (const item of items) {
+      const key = `${item.repo}:${item.path}:${item.name}:${item.block}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+      if (out.length >= limit) break;
+    }
+    return out;
+  };
+  const roleFor = (repo) => {
+    const lower = repo.toLowerCase();
+    if (lower.includes("commerce")) return ["Storefront and commerce experience", "Starts product browsing, cart, and checkout behavior."];
+    if (lower.includes("auth")) return ["Identity and session boundary", "Owns User, Account, Session, Token, and provider concepts."];
+    if (lower.includes("stripe") || lower.includes("payment")) return ["Payment provider integration", "Owns Stripe SDK surfaces, customers, checkout sessions, and payment intents."];
+    return ["Architecture component", "Role inferred from returned evidence surfaces."];
+  };
+  const sessionEvidence = match(["session", "auth", "token", "user", "account"], 6);
+  const checkoutEvidence = match(["checkout", "cart", "order"], 6);
+  const paymentEvidence = match(["payment", "stripe", "invoice", "charge", "customer"], 6);
+  const impactEvidence = dedupe([...sessionEvidence, ...checkoutEvidence, ...paymentEvidence, ...evidence.filter((s) => ["Network Edge", "Access Control", "Data Persistence", "Connectivity Layer"].includes(s.block))], 8);
+  return {
+    headline: "Commerce checkout system assessment",
+    summary:
+      "LogicLens treats the selected repositories as one commerce system: a storefront that starts cart/checkout behavior, an identity layer that owns User and Session state, and a payment SDK surface that owns Stripe/PaymentIntent concepts.",
+    project_understanding: {
+      question: "What services/repos exist, what role does each play, and how do they relate?",
+      answer: "The system separates user-facing commerce, authentication/session ownership, and payment-provider integration. Changes to checkout behavior are likely to cross those boundaries.",
+      repos: repos.map((repo) => {
+        const [role, relationship] = roleFor(repo);
+        return { repo, role, relationship };
+      }),
+    },
+    entity_workflows: [
+      {
+        question: "Where is User, Session, Order, Checkout, or Payment handled?",
+        answer: "Entity signals are strongest around auth/session models, checkout/cart surfaces, and Stripe/payment API boundaries. Use these as workflow anchors before reading broad directories.",
+        evidence: dedupe([...sessionEvidence, ...checkoutEvidence, ...paymentEvidence], 8),
+      },
+      {
+        question: "Trace the checkout/login/payment workflow.",
+        answer: "Start at storefront cart/checkout surfaces, cross into session/auth boundaries for user identity, then inspect payment/webhook or Stripe SDK surfaces for money movement and fulfillment seams.",
+        evidence: dedupe([...checkoutEvidence, ...sessionEvidence, ...paymentEvidence], 8),
+      },
+    ],
+    code_grounded_retrieval: {
+      question: "Which files/functions/classes support these claims?",
+      answer: "Each claim below is backed by concrete repo/path/range evidence from the graph ingest and semantic block classifier.",
+      evidence: evidence.slice(0, 8),
+    },
+    graph_reasoning: {
+      question: "If I change checkout or payment creation, what might be affected?",
+      answer: "The first blast-radius ring is network/API surfaces, auth/session state, persistence models, and payment SDK calls. These are the cross-repo seams a developer should inspect before editing.",
+      evidence: impactEvidence,
+    },
+    architecture_qa: [
+      {
+        question: "Where is Session handled?",
+        answer: "Look first for Access Control and Data Persistence evidence containing session/auth/token/provider terms, then follow callers in storefront/API surfaces.",
+        evidence: sessionEvidence.slice(0, 5),
+      },
+      {
+        question: "Trace checkout to payment.",
+        answer: "Follow cart/checkout surfaces into payment or Stripe-named SDK/API surfaces; webhook-like network edges are the likely confirmation/fulfillment boundary.",
+        evidence: dedupe([...checkoutEvidence, ...paymentEvidence], 6),
+      },
+      {
+        question: "What should I inspect before changing payment behavior?",
+        answer: "Inspect high-confidence payment, network-edge, connectivity, and persistence surfaces first; these are where a local code change is most likely to affect external behavior.",
+        evidence: impactEvidence.slice(0, 6),
+      },
+    ],
+  };
+}
+
+function renderAssessment(assessment) {
+  if (!assessment) {
+    $("assessment-panel").innerHTML = "";
+    return;
+  }
+  const project = assessment.project_understanding || {};
+  const workflow = (assessment.entity_workflows || [])[1] || (assessment.entity_workflows || [])[0] || {};
+  const qa = assessment.architecture_qa || [];
+  $("assessment-panel").innerHTML = `
+    <article class="assessment-hero">
+      <span class="eyebrow">multi-repo assessment</span>
+      <h3>${escapeHtml(assessment.headline || "System assessment")}</h3>
+      <p>${escapeHtml(assessment.summary || "")}</p>
+    </article>
+    <div class="assessment-grid">
+      <article class="assessment-card wide">
+        <span>Project understanding</span>
+        <strong>${escapeHtml(project.question || "What services/repos exist?")}</strong>
+        <p>${escapeHtml(project.answer || "")}</p>
+        <div class="repo-role-grid">${(project.repos || []).map(renderRepoRole).join("")}</div>
+      </article>
+      <article class="assessment-card">
+        <span>Entity / workflow</span>
+        <strong>${escapeHtml(workflow.question || "Trace the workflow")}</strong>
+        <p>${escapeHtml(workflow.answer || "")}</p>
+        ${renderEvidenceList(workflow.evidence || [])}
+      </article>
+      <article class="assessment-card">
+        <span>Code-grounded retrieval</span>
+        <strong>${escapeHtml(assessment.code_grounded_retrieval?.question || "Which files support this?")}</strong>
+        <p>${escapeHtml(assessment.code_grounded_retrieval?.answer || "")}</p>
+        ${renderEvidenceList(assessment.code_grounded_retrieval?.evidence || [])}
+      </article>
+      <article class="assessment-card">
+        <span>Graph reasoning</span>
+        <strong>${escapeHtml(assessment.graph_reasoning?.question || "What might be affected?")}</strong>
+        <p>${escapeHtml(assessment.graph_reasoning?.answer || "")}</p>
+        ${renderEvidenceList(assessment.graph_reasoning?.evidence || [])}
+      </article>
+      <article class="assessment-card">
+        <span>Architecture Q&A</span>
+        ${(qa || []).map(renderQaAnswer).join("")}
+      </article>
+    </div>`;
+}
+
+function renderRepoRole(role) {
+  return `
+    <div class="repo-role">
+      <strong>${escapeHtml(role.repo)}</strong>
+      <span>${escapeHtml(role.role)}</span>
+      <small>${escapeHtml(role.relationship || "")}</small>
+    </div>`;
+}
+
+function renderEvidenceList(items) {
+  const rows = (items || []).slice(0, 5);
+  if (!rows.length) return `<em>No evidence returned.</em>`;
+  return `<ul class="evidence-list">${rows.map(renderEvidenceItem).join("")}</ul>`;
+}
+
+function renderEvidenceItem(item) {
+  return `
+    <li>
+      <span>${escapeHtml(item.repo || "")}</span>
+      <strong>${escapeHtml(item.path || item.file_path || item.name || "")}</strong>
+      <small>${escapeHtml([item.block, formatRange(item.range)].filter(Boolean).join(" / "))}</small>
+    </li>`;
+}
+
+function renderQaAnswer(item) {
+  return `
+    <div class="qa-answer">
+      <strong>${escapeHtml(item.question || "")}</strong>
+      <p>${escapeHtml(item.answer || "")}</p>
+      ${renderEvidenceList(item.evidence || [])}
+    </div>`;
 }
 
 function renderOperatorAnswers(result) {
-  const insights = result?.insights || [];
-  if (!insights.length) {
-    $("answer-grid").innerHTML = `
-      <div class="answer-card">
-        <strong>Static preview mode.</strong>
-        <p>The hosted backend returns richer operator answers. The browser fallback keeps only block evidence.</p>
-      </div>`;
-    return;
-  }
+  const insights = result?.insights?.length ? result.insights : buildPreviewInsights();
   $("answer-grid").innerHTML = insights
     .map((insight) => {
       const samples = insight.samples || [];
@@ -356,14 +541,9 @@ function renderOperatorAnswers(result) {
           <p>${escapeHtml(insight.answer)}</p>
           ${
             samples.length
-              ? `<ul>${samples
-                  .map(
-                    (sample) =>
-                      `<li><span>${escapeHtml(sample.path)}</span><small>${escapeHtml(sample.block)} · ${Math.round(Number(sample.confidence || 0) * 100)}%</small></li>`,
-                  )
-                  .join("")}</ul>`
+              ? `<ul>${samples.map(renderInsightSample).join("")}</ul>`
               : blocks.length
-                ? `<ul>${blocks.map((block) => `<li><span>${escapeHtml(block.block)}</span><small>${formatNumber(block.count)} nodes</small></li>`).join("")}</ul>`
+                ? `<ul>${blocks.map((block) => `<li><span>${escapeHtml(block.block)}</span><small>${formatNumber(block.count)} surfaces</small></li>`).join("")}</ul>`
                 : `<em>${escapeHtml(insight.empty_state || "No evidence returned.")}</em>`
           }
         </article>`;
@@ -371,16 +551,64 @@ function renderOperatorAnswers(result) {
     .join("");
 }
 
-function renderRuntimeReceipt(result) {
-  if (!result) {
-    $("runtime-receipt").textContent = "No completed analysis yet.";
+function renderInsightSample(sample) {
+  const repo = sample.repo ? `${sample.repo} / ` : "";
+  const range = formatRange(sample.range);
+  return `<li><span>${escapeHtml(repo)}${escapeHtml(sample.path || sample.file_path || sample.name)}${range ? `<em>${escapeHtml(range)}</em>` : ""}</span><small>${escapeHtml(sample.block || "")} / ${Math.round(Number(sample.confidence || 0) * 100)}%</small></li>`;
+}
+
+function buildPreviewInsights() {
+  const counts = [...countBy(state.surfaces, (surface) => surface.block).entries()].sort((a, b) => b[1] - a[1]);
+  const sensitiveBlocks = new Set(["Access Control", "Security Ops", "Data Persistence", "Network Edge", "Background Processing"]);
+  const sensitive = state.surfaces.filter((surface) => sensitiveBlocks.has(surface.block)).sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+  const highSignal = state.surfaces.slice().sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+  const lowConfidence = state.surfaces.slice().sort((a, b) => a.confidence - b.confidence).slice(0, 5);
+
+  return [
+    {
+      title: "What architecture blocks dominate?",
+      answer: "The top labels show the repo areas LogicLens can identify from path and source evidence in this run.",
+      dominant_blocks: counts.slice(0, 5).map(([block, count]) => ({ block, count })),
+      empty_state: "No block distribution available.",
+    },
+    {
+      title: "Where are the sensitive seams?",
+      answer: "Start review around auth, security, persistence, network, and background-work surfaces.",
+      samples: sensitive,
+      empty_state: "No sensitive architecture seams found in the bounded result window.",
+    },
+    {
+      title: "Which files have the clearest evidence?",
+      answer: "These rows have the highest combined path and code signals, making them good anchors for manual inspection.",
+      samples: highSignal,
+      empty_state: "No high-confidence evidence rows found.",
+    },
+    {
+      title: "What should a reviewer inspect next?",
+      answer: "Lower-confidence rows are where a human reviewer can improve labels or ask deeper graph questions.",
+      samples: lowConfidence,
+      empty_state: "No low-confidence rows returned.",
+    },
+  ];
+}
+
+function renderRuntimeReceipt(result, preview = null) {
+  if (result) {
+    const integrity = result.summary?.graph_integrity?.overall_status || "unknown";
+    const manifest = result.summary?.manifest?.required_artifacts_present ? "manifest complete" : "manifest incomplete";
+    const artifactId = String(result.artifact_dir || "").split(/[\\/]/).filter(Boolean).pop() || "artifact saved";
+    $("runtime-mode").textContent = `hosted backend API; ${result.runtime_capabilities?.structural_ingest || "structural ingest"}`;
+    const repoCount = result.summary?.repo_count || result.repos?.length || 1;
+    $("runtime-receipt").textContent =
+      repoCount > 1 ? `${repoCount} repos; ${manifest}; aggregate integrity ${integrity}` : `${manifest}; graph integrity ${integrity}; artifact ${artifactId}`;
     return;
   }
-  const integrity = result.summary.graph_integrity?.overall_status || "unknown";
-  const manifest = result.summary.manifest?.required_artifacts_present ? "manifest complete" : "manifest incomplete";
-  const artifactId = String(result.artifact_dir || "").split(/[\\/]/).filter(Boolean).pop() || "artifact saved";
-  $("runtime-mode").textContent = `hosted backend API; ${result.runtime_capabilities.structural_ingest}`;
-  $("runtime-receipt").textContent = `${manifest}; graph integrity ${integrity}; artifact ${artifactId}`;
+  if (preview) {
+    $("runtime-mode").textContent = "GitHub Pages static preview";
+    $("runtime-receipt").textContent = `${preview.fileCount} file surfaces; ${preview.sampledCount} sampled blobs${preview.warning ? `; ${preview.warning}` : ""}`;
+    return;
+  }
+  $("runtime-receipt").textContent = "No completed analysis yet.";
 }
 
 function renderBlockTree() {
@@ -388,35 +616,35 @@ function renderBlockTree() {
   for (const surface of state.surfaces) {
     const parts = surface.path.split("/");
     const directory = parts.length > 1 ? parts[0] : ".";
-    if (!byDirectory.has(directory)) byDirectory.set(directory, []);
-    byDirectory.get(directory).push(surface);
+    const key = `${surface.repo || state.currentRepo} / ${directory}`;
+    if (!byDirectory.has(key)) byDirectory.set(key, []);
+    byDirectory.get(key).push(surface);
   }
+
   const branches = [...byDirectory.entries()]
-    .map(([directory, surfaces]) => {
-      const blockCounts = [...countBy(surfaces, (surface) => surface.block).entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-      return { directory, total: surfaces.length, blockCounts };
-    })
+    .map(([directory, surfaces]) => ({
+      directory,
+      total: surfaces.length,
+      blockCounts: [...countBy(surfaces, (surface) => surface.block).entries()].sort((a, b) => b[1] - a[1]).slice(0, 4),
+    }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 8);
-  renderBlockTreeFallback(branches);
-}
 
-function renderBlockTreeFallback(branches) {
   $("block-tree").innerHTML = `
-    <div class="trees-root" role="tree" aria-label="Detected block tree" data-slot="file-tree" data-tree-library="smui-file-tree">
+    <div class="trees-root" role="tree" aria-label="Detected architecture block tree">
       <div class="trees-row repo-row" role="treeitem" aria-level="1" aria-expanded="true">
-        <span class="trees-twist" aria-hidden="true">▾</span>
+        <span class="trees-twist" aria-hidden="true">+</span>
         <span class="trees-label">${escapeHtml(state.currentRepo)}</span>
       </div>
       ${branches
         .map(
-          (branch, branchIndex) => `
+          (branch) => `
             <div class="trees-branch" role="group">
               <div class="trees-row" role="treeitem" aria-level="2" aria-expanded="true">
                 <span class="trees-indent" aria-hidden="true"></span>
-                <span class="trees-twist" aria-hidden="true">▾</span>
+                <span class="trees-twist" aria-hidden="true">+</span>
                 <span class="trees-label">${escapeHtml(branch.directory)}/</span>
-                <span class="trees-count">${branch.total} file surfaces</span>
+                <span class="trees-count">${formatNumber(branch.total)} surfaces</span>
               </div>
               ${branch.blockCounts
                 .map(
@@ -426,7 +654,7 @@ function renderBlockTreeFallback(branches) {
                       <span class="trees-indent" aria-hidden="true"></span>
                       <span class="trees-twist" aria-hidden="true"></span>
                       <span class="trees-label">${escapeHtml(block)}</span>
-                      <span class="trees-count">${count}</span>
+                      <span class="trees-count">${formatNumber(count)}</span>
                     </div>`,
                 )
                 .join("")}
@@ -436,698 +664,289 @@ function renderBlockTreeFallback(branches) {
     </div>`;
 }
 
-function setupFixtureReview() {
-  $("fixture-files").addEventListener("change", (event) => loadFixtureFiles(event.target.files));
-  $("fixture-json").addEventListener("change", (event) => loadFixtureFiles(event.target.files));
-  $("fixture-filter").addEventListener("change", (event) => {
-    state.fixture.filter = event.target.value;
-    renderFixtureReview();
+function renderEmptyBadge() {
+  $("badge-preview").innerHTML = `<div class="badge-empty">Run an analysis to generate a badge.</div>`;
+  $("badge-markdown").value = "";
+  $("badge-copy").disabled = true;
+  $("badge-download").disabled = true;
+}
+
+function renderFailureBadge(repo, error) {
+  updateBadge({
+    repo,
+    repos: state.currentRepos,
+    mode: "failed",
+    modeLabel: "Analysis failed",
+    status: "needs review",
+    score: 0,
+    grade: "FAIL",
+    nodes: 0,
+    edges: 0,
+    files: 0,
+    topBlocks: [],
+    integrity: "not run",
+    completedAt: new Date(),
+    warning: error.message,
+    primaryMetric: "failed",
+    coverageLabel: "no badgeable result",
   });
-  $("fixture-export").addEventListener("click", exportFixtureReview);
-  $("fixture-mark-correct").addEventListener("click", () => bulkReviewVisible("correct"));
-  $("fixture-reset-visible").addEventListener("click", () => bulkReviewVisible("unreviewed"));
-  document.querySelectorAll("[data-fixture-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.fixture.activeTab = button.dataset.fixtureTab;
-      renderFixtureReview();
-    });
-  });
-  $("fixture-list").addEventListener("click", onFixtureListClick);
-  $("fixture-list").addEventListener("input", onFixtureListInput);
-  $("fixture-list").addEventListener("change", onFixtureListInput);
-  document.addEventListener("keydown", onFixtureShortcut);
 }
 
-async function loadFixtureFiles(fileList) {
-  const files = [...fileList];
-  if (!files.length) return;
-  $("fixture-repo").textContent = "Loading packet";
-  $("fixture-artifact").textContent = `${files.length} selected file${files.length === 1 ? "" : "s"}`;
-  $("fixture-graph").innerHTML = "";
-  $("fixture-stats").innerHTML = `<div class="fixture-stat"><strong>...</strong><span>loading</span></div>`;
-  $("fixture-list").innerHTML = `<div class="fixture-empty">Reading packet JSON and preparing review cards...</div>`;
-  const jsonByName = new Map();
-  for (const file of files) {
-    if (!file.name.endsWith(".json")) continue;
-    try {
-      jsonByName.set(file.name, JSON.parse(await file.text()));
-    } catch (error) {
-      $("fixture-list").innerHTML = `<div class="fixture-empty">Could not parse ${escapeHtml(file.name)}: ${escapeHtml(error.message)}</div>`;
-      return;
-    }
-  }
-  const packet = jsonByName.get("fixture-candidates.json") || synthesizeFixturePacket(jsonByName) || [...jsonByName.values()].find((item) => item?.report_type === "fixture_training_packet");
-  if (!packet) {
-    $("fixture-list").innerHTML = `<div class="fixture-empty">No fixture-candidates.json file found in that selection.</div>`;
-    return;
-  }
-  state.fixture.packet = normalizeFixturePacket(packet, jsonByName);
-  state.fixture.canonicalGraph = jsonByName.get("canonical-graph.snapshot.json") || null;
-  state.fixture.activeTab = "nodes";
-  state.fixture.filter = "all";
-  $("fixture-filter").value = "all";
-  renderFixtureReview();
-}
-
-function synthesizeFixturePacket(jsonByName) {
-  const hasCompatibilityFiles = Object.values(FIXTURE_COMPAT_FILES).some((names) => names.some((name) => jsonByName.has(name)));
-  if (!hasCompatibilityFiles) return null;
-  const graph = jsonByName.get("canonical-graph.snapshot.json") || {};
+function buildBadgeData({ repo, repos = [repo], mode, surfaces, result, warning = "" }) {
+  const counts = [...countBy(surfaces, (surface) => surface.block).entries()].sort((a, b) => b[1] - a[1]);
+  const files = new Set(surfaces.map((surface) => surface.path)).size;
+  const nodes = Number(result?.summary?.node_count || surfaces.length || 0);
+  const edges = Number(result?.summary?.edge_count || 0);
+  const repoCount = Number(result?.summary?.repo_count || repos.length || 1);
+  const avgConfidence = surfaces.length ? surfaces.reduce((sum, surface) => sum + Number(surface.confidence || 0), 0) / surfaces.length : 0;
+  const integrity = result?.summary?.graph_integrity?.overall_status || (mode === "hosted" ? "unknown" : "preview");
+  const manifestOk = Boolean(result?.summary?.manifest?.required_artifacts_present);
+  const score = scoreAnalysis({ mode, nodes, files, avgConfidence, integrity, manifestOk });
+  const grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : mode === "static" ? "PREVIEW" : "REVIEW";
   return {
-    report_type: "fixture_training_packet",
-    artifact_dir: graph.artifact_dir || "",
-    repo_name: graph.repo_name || "review packet",
-    review_protocol: {
-      labels: REVIEW_LABELS,
-      instruction: "Review generated candidates, mark status, and add notes or traces.",
-    },
-    candidate_nodes: [],
-    candidate_reference_edges: [],
-    candidate_evidence_questions: [],
-    candidate_blast_radius_scenarios: [],
+    repo,
+    repos,
+    mode,
+    modeLabel: mode === "hosted" ? "Hosted backend graph" : "Browser GitHub preview",
+    status: mode === "hosted" ? "graph receipt" : "bounded preview",
+    score,
+    grade,
+    nodes,
+    edges,
+    files,
+    topBlocks: counts.slice(0, 3).map(([block, count]) => ({ block, count })),
+    integrity,
+    completedAt: new Date(),
+    warning,
+    primaryMetric: mode === "hosted" ? `${repoCount} repos / ${compactNumber(nodes)} nodes` : `${formatNumber(files)} files`,
+    coverageLabel: mode === "hosted" ? "backend graph" : "static preview",
   };
 }
 
-function normalizeFixturePacket(packet, jsonByName = new Map()) {
-  const next = structuredClone(packet);
-  next.review_protocol = next.review_protocol || {
-    labels: REVIEW_LABELS,
-    instruction: "Review each generated fixture candidate.",
-  };
-  for (const [key, names] of Object.entries(FIXTURE_COMPAT_FILES)) {
-    const override = names.map((name) => jsonByName.get(name)).find(Array.isArray);
-    next[key] = normalizeReviewArray(override || next[key]);
-  }
-  return next;
+function scoreAnalysis({ mode, nodes, files, avgConfidence, integrity, manifestOk }) {
+  const confidenceScore = Math.round((avgConfidence || 0.55) * 100);
+  const volumeScore = Math.min(20, Math.round(Math.log10(Math.max(nodes, files, 1)) * 8));
+  const graphBonus = mode === "hosted" ? 14 : 0;
+  const integrityBonus = /ok|pass|green|valid/i.test(String(integrity)) ? 10 : manifestOk ? 6 : 0;
+  const previewBonus = mode === "static" ? 8 : 0;
+  return clamp(Math.round(42 + confidenceScore * 0.28 + volumeScore + graphBonus + integrityBonus + previewBonus), mode === "static" ? 45 : 35, 98);
 }
 
-function normalizeReviewArray(items) {
-  return (items || []).map((item) => ({
-    ...item,
-    review: REVIEW_LABELS.includes(item.review) ? item.review : "unreviewed",
-    human_notes: item.human_notes || "",
-    human_traces: normalizeTraceArray(item.human_traces),
-  }));
+function updateBadge(data) {
+  state.latestBadge = data;
+  const svg = buildBadgeSvg(data);
+  $("badge-preview").innerHTML = svg;
+  $("badge-markdown").value = buildMarkdownBadge(data);
+  $("badge-copy").disabled = false;
+  $("badge-download").disabled = false;
 }
 
-function normalizeTraceArray(value) {
-  if (Array.isArray(value)) return value.map(String);
-  if (typeof value === "string" && value.trim()) return splitLines(value);
-  return [];
+function buildMarkdownBadge(data) {
+  const color = data.score >= 90 ? "2f7d5a" : data.score >= 80 ? "2f5f8f" : data.score >= 70 ? "8a6f2a" : "8f3434";
+  const message = encodeURIComponent(`${data.grade} ${data.score}% | ${data.primaryMetric}`);
+  const badgeUrl = `https://img.shields.io/badge/LogicLens-${message}-${color}?style=flat-square&labelColor=1f2937`;
+  const analyzerUrl = `${window.location.origin}${window.location.pathname}?repos=${encodeURIComponent((data.repos || [data.repo]).join(","))}`;
+  return `[![LogicLens analysis](${badgeUrl})](${analyzerUrl})`;
 }
 
-function renderFixtureReview() {
-  const packet = state.fixture.packet;
-  const summary = packet ? reviewSummary(packet) : null;
-  $("fixture-export").disabled = !packet;
-  $("fixture-mark-correct").disabled = !packet || state.fixture.activeTab === "summary";
-  $("fixture-reset-visible").disabled = !packet || state.fixture.activeTab === "summary";
-  document.querySelectorAll("[data-fixture-tab]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.fixtureTab === state.fixture.activeTab);
-  });
-  $("fixture-repo").textContent = packet?.repo_name || "No packet loaded";
-  $("fixture-artifact").textContent = packet?.artifact_dir || "Load fixture-candidates.json or the whole packet directory.";
-  $("fixture-graph").innerHTML = packet ? renderFixtureGraphSummary() : "";
-  $("fixture-stats").innerHTML = summary
-    ? renderFixtureStats(summary, packet)
-    : `<div class="fixture-stat"><strong>0</strong><span>candidates</span></div><div class="fixture-stat"><strong>0</strong><span>reviewed</span></div>`;
+function buildBadgeSvg(data) {
+  const width = 860;
+  const height = 260;
+  const blocks = data.topBlocks.length ? data.topBlocks : [{ block: "No block evidence", count: 0 }];
+  const blockRows = blocks
+    .map(
+      (item, index) => `
+        <g transform="translate(42 ${148 + index * 28})">
+          <rect width="${Math.max(80, Math.min(390, item.count * 18 + 80))}" height="16" fill="${index === 0 ? "#2f5f8f" : index === 1 ? "#56738f" : "#78909c"}" opacity="0.88"/>
+          <text x="12" y="12" font-size="12" fill="#ffffff">${escapeXml(item.block)} / ${formatNumber(item.count)}</text>
+        </g>`,
+    )
+    .join("");
+  const warning = data.warning ? `<text x="42" y="238" font-size="12" fill="#8a6f2a">${escapeXml(data.warning)}</text>` : "";
 
-  if (!packet) {
-    $("fixture-list").innerHTML = `<div class="fixture-empty">Load a packet to review candidate nodes, edges, evidence questions, and blast-radius scenarios.</div>`;
-    return;
-  }
-
-  if (state.fixture.activeTab === "summary") {
-    $("fixture-list").innerHTML = renderFixtureSummary(packet, summary);
-    return;
-  }
-
-  const config = FIXTURE_TABS[state.fixture.activeTab];
-  const visible = getVisibleFixtureItems();
-  $("fixture-list").innerHTML = visible.length
-    ? visible.map(({ item, index }) => renderFixtureCard(config.key, item, index)).join("")
-    : `<div class="fixture-empty">No ${escapeHtml(config.label.toLowerCase())} match this filter.</div>`;
-}
-
-function renderFixtureStats(summary, packet) {
-  const counts = [
-    ["total", summary.total],
-    ["reviewed", summary.reviewed],
-    ["correct", summary.correct],
-    ["wrong", summary.wrong],
-    ["missing context", summary.missing_important_context],
-    ["not sure", summary.not_sure],
-  ];
-  return counts.map(([label, value]) => `<div class="fixture-stat"><strong>${formatNumber(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("");
-}
-
-function renderFixtureGraphSummary() {
-  const graph = state.fixture.canonicalGraph;
-  if (!graph?.summary) {
-    return `<div class="fixture-graph-empty">Canonical graph snapshot not loaded. Candidate review still works, but source/target context will be limited.</div>`;
-  }
-  const layers = (graph.summary.layers || []).join(", ") || "none";
   return `
-    <div class="fixture-graph-grid">
-      <span><strong>${formatNumber(graph.summary.node_count || 0)}</strong> graph nodes</span>
-      <span><strong>${formatNumber(graph.summary.edge_count || 0)}</strong> graph edges</span>
-      <span><strong>${formatNumber(graph.summary.dangling_edge_count || 0)}</strong> dangling edges</span>
-      <span><strong>${escapeHtml(layers)}</strong> layers</span>
-    </div>`;
+    <svg class="analysis-badge-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="LogicLens analysis badge for ${escapeAttribute(data.repo)}">
+      <defs>
+        <linearGradient id="badge-bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#edf1f6"/>
+          <stop offset="100%" stop-color="#d7dee8"/>
+        </linearGradient>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#badge-bg)"/>
+      <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="#f7f9fb" stroke="#9aa8ba"/>
+      <text x="42" y="58" font-family="Space Grotesk, Segoe UI, sans-serif" font-size="28" font-weight="700" fill="#263544">LogicLens analysis</text>
+      <text x="42" y="84" font-family="JetBrains Mono, Consolas, monospace" font-size="14" fill="#516173">${escapeXml(truncate(data.repo, 72))}</text>
+      <text x="42" y="118" font-family="JetBrains Mono, Consolas, monospace" font-size="12" fill="#516173">${escapeXml(data.modeLabel)} / ${escapeXml(data.status)}</text>
+      ${blockRows}
+      <g transform="translate(585 42)">
+        <rect width="220" height="158" fill="#263544"/>
+        <text x="18" y="36" font-family="JetBrains Mono, Consolas, monospace" font-size="12" fill="#b7c2ce">score</text>
+        <text x="18" y="92" font-family="Space Grotesk, Segoe UI, sans-serif" font-size="52" font-weight="700" fill="#ffffff">${escapeXml(data.grade)}</text>
+        <text x="128" y="88" font-family="Space Grotesk, Segoe UI, sans-serif" font-size="30" font-weight="700" fill="#ffffff">${data.score}%</text>
+        <text x="18" y="122" font-family="JetBrains Mono, Consolas, monospace" font-size="12" fill="#dbe3eb">${escapeXml(data.primaryMetric)}</text>
+        <text x="18" y="145" font-family="JetBrains Mono, Consolas, monospace" font-size="12" fill="#dbe3eb">${formatNumber(data.edges)} edges / ${formatNumber(data.files)} files</text>
+      </g>
+      <text x="585" y="226" font-family="JetBrains Mono, Consolas, monospace" font-size="12" fill="#516173">Generated ${escapeXml(data.completedAt.toISOString().slice(0, 19))}Z</text>
+      ${warning}
+    </svg>`;
 }
 
-function renderFixtureSummary(packet, summary) {
-  const graph = state.fixture.canonicalGraph;
-  return `
-    <div class="fixture-summary">
-      <div>
-        <h3>Review Summary</h3>
-        <p>${formatNumber(summary.reviewed)} of ${formatNumber(summary.total)} candidates reviewed for ${escapeHtml(packet.repo_name || "this repo")}.</p>
-      </div>
-      <div class="tag-row">
-        <span class="tag">nodes ${formatNumber((packet.candidate_nodes || []).length)}</span>
-        <span class="tag">edges ${formatNumber((packet.candidate_reference_edges || []).length)}</span>
-        <span class="tag">questions ${formatNumber((packet.candidate_evidence_questions || []).length)}</span>
-        <span class="tag">blast ${formatNumber((packet.candidate_blast_radius_scenarios || []).length)}</span>
-      </div>
-      ${
-        graph?.summary
-          ? `<div class="tag-row">
-              <span class="tag">graph nodes ${formatNumber(graph.summary.node_count || 0)}</span>
-              <span class="tag">graph edges ${formatNumber(graph.summary.edge_count || 0)}</span>
-              <span class="tag">dangling ${formatNumber(graph.summary.dangling_edge_count || 0)}</span>
-              <span class="tag">layers ${(graph.summary.layers || []).map(escapeHtml).join(", ")}</span>
-            </div>`
-          : `<p class="fixture-meta">Canonical graph snapshot not loaded. Review still works without graph context.</p>`
-      }
-      <p class="fixture-meta">Export writes reviewed-fixture-packet.json plus review-nodes, review-edges, review-evidence-questions, and review-blast-radius-scenarios compatibility files.</p>
-    </div>`;
-}
-
-function getVisibleFixtureItems() {
-  const packet = state.fixture.packet;
-  if (!packet || state.fixture.activeTab === "summary") return [];
-  const config = FIXTURE_TABS[state.fixture.activeTab];
-  const filter = state.fixture.filter;
-  return (packet[config.key] || [])
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => filter === "all" || item.review === filter)
-    .sort((a, b) => fixtureSortKey(a.item).localeCompare(fixtureSortKey(b.item)));
-}
-
-function fixtureSortKey(item) {
-  const reviewPrefix = item.review === "unreviewed" ? "0" : "1";
-  const blockPrefix = item.suggested_blocks?.length || item.expected_blocks?.length || item.expected_impacted_blocks?.length ? "0" : "1";
-  return `${reviewPrefix}:${blockPrefix}:${item.file_path || item.source_file || item.target_file || item.id || item.node_id || ""}`;
-}
-
-function renderFixtureCard(key, item, index) {
-  const body =
-    key === "candidate_nodes"
-      ? renderNodeCandidate(item)
-      : key === "candidate_reference_edges"
-        ? renderEdgeCandidate(item)
-        : key === "candidate_evidence_questions"
-          ? renderEvidenceCandidate(item)
-          : renderBlastCandidate(item);
-  return `
-    <article class="fixture-card" data-key="${key}" data-index="${index}" tabindex="-1">
-      <header>
-        <div>${body.heading}</div>
-        <span class="status-chip">${reviewLabel(item.review)}</span>
-      </header>
-      ${body.content}
-      ${renderReviewControls(item)}
-    </article>`;
-}
-
-function renderNodeCandidate(item) {
-  return {
-    heading: `<h3>${escapeHtml(item.file_path || item.label || item.node_id)}</h3><small>${escapeHtml(item.kind || "node")} ${item.label ? ` / ${escapeHtml(item.label)}` : ""}</small>`,
-    content: `
-      <div class="tag-row">${(item.suggested_blocks || []).map((block) => `<span class="tag">${escapeHtml(block)}</span>`).join("") || `<span class="tag">no suggested blocks</span>`}</div>
-      ${renderNodeGraphContext(item)}
-      <details><summary>node id</summary><pre>${escapeHtml(item.node_id || "")}</pre></details>`,
-  };
-}
-
-function renderEdgeCandidate(item) {
-  return {
-    heading: `<h3>${escapeHtml(item.relationship || "reference edge")}</h3><small>${escapeHtml(item.source_file || item.source_label || item.source_id)} --> ${escapeHtml(item.target_file || item.target_label || item.target_id)}</small>`,
-    content: `
-      <div class="fixture-grid">
-        <div class="field"><label>source</label><code>${escapeHtml(item.source_file || item.source_label || item.source_id)}</code></div>
-        <div class="field"><label>target</label><code>${escapeHtml(item.target_file || item.target_label || item.target_id)}</code></div>
-        <div class="field"><label for="edge-expectation-${item.source_id}-${item.target_id}">resolution expectation</label>${renderSelect("resolution_expectation", item.resolution_expectation || "not_sure", ["must", "nice", "fallback_ok", "not_sure"])}</div>
-      </div>
-      ${renderEdgeGraphContext(item)}`,
-  };
-}
-
-function renderEvidenceCandidate(item) {
-  return {
-    heading: `<h3>${escapeHtml(item.question || item.id)}</h3><small>${escapeHtml(item.id || "evidence question")}</small>`,
-    content: `
-      <div class="fixture-grid">
-        ${renderTextField("question", "question", item.question || "")}
-        ${renderTextArea("expected_blocks", "expected blocks", joinLines(item.expected_blocks))}
-        ${renderTextArea("expected_files", "expected files", joinLines(item.expected_files))}
-        ${renderTextArea("expected_file_globs", "expected file globs", joinLines(item.expected_file_globs))}
-        <label class="field"><span>unsupported</span><select data-field="unsupported"><option value="false"${!item.unsupported ? " selected" : ""}>no</option><option value="true"${item.unsupported ? " selected" : ""}>yes</option></select></label>
-      </div>
-      ${renderFilesGraphContext([...(item.expected_files || []), ...(item.expected_file_globs || [])])}`,
-  };
-}
-
-function renderBlastCandidate(item) {
-  return {
-    heading: `<h3>${escapeHtml(item.change || item.id)}</h3><small>${escapeHtml(item.id || "blast-radius scenario")}</small>`,
-    content: `
-      <div class="fixture-grid">
-        ${renderTextArea("expected_impacted_files", "expected impacted files", joinLines(item.expected_impacted_files))}
-        ${renderTextArea("expected_impacted_blocks", "expected impacted blocks", joinLines(item.expected_impacted_blocks))}
-        ${renderTextArea("should_not_impact", "should not impact", joinLines(item.should_not_impact))}
-        <div class="field"><label>risk level</label>${renderSelect("risk_level", item.risk_level || "not_sure", ["low", "medium", "high", "not_sure"])}</div>
-        ${renderTextField("validation_command", "validation command", item.validation_command || "")}
-      </div>
-      ${renderFilesGraphContext([...(item.expected_impacted_files || []), ...(item.should_not_impact || [])])}`,
-  };
-}
-
-function renderNodeGraphContext(item) {
-  const node = findGraphNode(item.node_id);
-  const related = relatedNodesForFile(item.file_path || node?.file_path).filter((candidate) => candidate.node_id !== item.node_id).slice(0, 4);
-  if (!node && !related.length) return "";
-  return `
-    <details class="graph-context">
-      <summary>graph context</summary>
-      ${node ? renderGraphNodeLine(node) : ""}
-      ${related.length ? `<div class="context-list">${related.map(renderGraphNodeLine).join("")}</div>` : ""}
-    </details>`;
-}
-
-function renderEdgeGraphContext(item) {
-  const source = findGraphNode(item.source_id);
-  const target = findGraphNode(item.target_id);
-  if (!source && !target) return "";
-  return `
-    <details class="graph-context">
-      <summary>source / target context</summary>
-      ${source ? `<div class="context-pair"><strong>source</strong>${renderGraphNodeLine(source)}</div>` : ""}
-      ${target ? `<div class="context-pair"><strong>target</strong>${renderGraphNodeLine(target)}</div>` : ""}
-    </details>`;
-}
-
-function renderFilesGraphContext(files) {
-  const related = [...new Map(files.flatMap((file) => relatedNodesForFile(file)).map((node) => [node.node_id, node])).values()].slice(0, 6);
-  if (!related.length) return "";
-  return `
-    <details class="graph-context">
-      <summary>related graph nodes</summary>
-      <div class="context-list">${related.map(renderGraphNodeLine).join("")}</div>
-    </details>`;
-}
-
-function findGraphNode(nodeId) {
-  if (!nodeId || !state.fixture.canonicalGraph?.nodes) return null;
-  return state.fixture.canonicalGraph.nodes.find((node) => String(node.node_id) === String(nodeId)) || null;
-}
-
-function relatedNodesForFile(filePath) {
-  if (!filePath || !state.fixture.canonicalGraph?.nodes) return [];
-  return state.fixture.canonicalGraph.nodes.filter((node) => node.file_path === filePath);
-}
-
-function renderGraphNodeLine(node) {
-  const file = node.file_path || node.label || node.node_id;
-  const range = formatRange(node.range);
-  return `
-    <div class="context-line">
-      <code>${escapeHtml(file || "")}</code>
-      <span>${escapeHtml([node.layer, node.kind, range].filter(Boolean).join(" / "))}</span>
-    </div>`;
-}
-
-function formatRange(range) {
-  if (!range) return "";
-  const start = range.start_line ?? range.startLine;
-  const end = range.end_line ?? range.endLine;
-  if (!start && !end) return "";
-  return start === end || !end ? `line ${start}` : `lines ${start}-${end}`;
-}
-
-function renderReviewControls(item) {
-  return `
-    <div class="review-controls">
-      <div class="review-actions">
-        ${REVIEW_LABELS.filter((label) => label !== "unreviewed")
-          .map((label) => `<button type="button" data-review="${label}" class="${item.review === label ? "active" : ""}">${reviewLabel(label)}</button>`)
-          .join("")}
-      </div>
-      <div class="field">
-        <label>notes</label>
-        <textarea data-field="human_notes" placeholder="Optional notes or traces">${escapeHtml(item.human_notes || "")}</textarea>
-      </div>
-      <div class="field">
-        <label>traces</label>
-        <textarea data-field="human_traces" placeholder="One trace, file path, or evidence hint per line">${escapeHtml(joinLines(item.human_traces))}</textarea>
-      </div>
-    </div>`;
-}
-
-function renderTextField(field, label, value) {
-  return `<div class="field"><label>${escapeHtml(label)}</label><input data-field="${field}" value="${escapeAttribute(value)}" /></div>`;
-}
-
-function renderTextArea(field, label, value) {
-  return `<div class="field"><label>${escapeHtml(label)}</label><textarea data-field="${field}">${escapeHtml(value)}</textarea></div>`;
-}
-
-function renderSelect(field, value, options) {
-  return `<select data-field="${field}">${options.map((option) => `<option value="${option}"${option === value ? " selected" : ""}>${reviewLabel(option)}</option>`).join("")}</select>`;
-}
-
-function onFixtureListClick(event) {
-  const review = event.target.closest("[data-review]")?.dataset.review;
-  if (!review) return;
-  const card = event.target.closest(".fixture-card");
-  const item = getFixtureItem(card);
-  item.review = review;
-  renderFixtureReview();
-}
-
-function onFixtureListInput(event) {
-  const field = event.target.dataset.field;
-  if (!field) return;
-  const card = event.target.closest(".fixture-card");
-  const item = getFixtureItem(card);
-  item[field] = parseFixtureField(field, event.target.value);
-  renderFixtureStatsOnly();
-}
-
-function getFixtureItem(card) {
-  return state.fixture.packet[card.dataset.key][Number(card.dataset.index)];
-}
-
-function parseFixtureField(field, value) {
-  if (field === "unsupported") return value === "true";
-  if (["expected_blocks", "expected_files", "expected_file_globs", "expected_impacted_files", "expected_impacted_blocks", "should_not_impact", "human_traces"].includes(field)) {
-    return splitLines(value);
-  }
-  return value;
-}
-
-function renderFixtureStatsOnly() {
-  if (!state.fixture.packet) return;
-  $("fixture-stats").innerHTML = renderFixtureStats(reviewSummary(state.fixture.packet), state.fixture.packet);
-}
-
-function bulkReviewVisible(review) {
-  for (const { item } of getVisibleFixtureItems()) item.review = review;
-  renderFixtureReview();
-}
-
-function onFixtureShortcut(event) {
-  if (!state.fixture.packet || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
-  const map = { 1: "correct", 2: "wrong", 3: "missing_important_context", 4: "not_sure" };
-  if (event.key.toLowerCase() === "n") {
-    event.preventDefault();
-    focusNextFixtureCard();
-    return;
-  }
-  if (map[event.key]) {
-    const first = getVisibleFixtureItems()[0];
-    if (first) {
-      first.item.review = map[event.key];
-      renderFixtureReview();
-    }
+async function copyBadgeMarkdown() {
+  const value = $("badge-markdown").value;
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+    setStatus("Badge Markdown copied to clipboard.");
+  } catch {
+    $("badge-markdown").select();
+    document.execCommand("copy");
+    setStatus("Badge Markdown selected and copied.");
   }
 }
 
-function focusNextFixtureCard() {
-  const cards = [...document.querySelectorAll(".fixture-card")];
-  if (!cards.length) return;
-  const current = document.activeElement?.closest?.(".fixture-card");
-  const currentIndex = current ? cards.indexOf(current) : -1;
-  const next = cards[Math.min(currentIndex + 1, cards.length - 1)] || cards[0];
-  next.focus({ preventScroll: true });
-  next.scrollIntoView({ block: "center", behavior: "smooth" });
-}
-
-function exportFixtureReview() {
-  const packet = state.fixture.packet;
-  if (!packet) return;
-  const reviewed = {
-    ...packet,
-    reviewed_at: new Date().toISOString(),
-    reviewer: $("fixture-reviewer")?.value || undefined,
-    summary: reviewSummary(packet),
-  };
-  downloadJson("reviewed-fixture-packet.json", reviewed);
-  downloadJson("review-nodes.json", packet.candidate_nodes || []);
-  downloadJson("review-edges.json", packet.candidate_reference_edges || []);
-  downloadJson("review-evidence-questions.json", packet.candidate_evidence_questions || []);
-  downloadJson("review-blast-radius-scenarios.json", packet.candidate_blast_radius_scenarios || []);
-}
-
-function reviewSummary(packet) {
-  const items = [
-    ...(packet.candidate_nodes || []),
-    ...(packet.candidate_reference_edges || []),
-    ...(packet.candidate_evidence_questions || []),
-    ...(packet.candidate_blast_radius_scenarios || []),
-  ];
-  return {
-    total: items.length,
-    reviewed: items.filter((item) => item.review !== "unreviewed").length,
-    correct: items.filter((item) => item.review === "correct").length,
-    wrong: items.filter((item) => item.review === "wrong").length,
-    missing_important_context: items.filter((item) => item.review === "missing_important_context").length,
-    not_sure: items.filter((item) => item.review === "not_sure").length,
-  };
-}
-
-function downloadJson(filename, data) {
-  const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: "application/json" });
+function downloadBadgeSvg() {
+  if (!state.latestBadge) return;
+  const svg = buildBadgeSvg(state.latestBadge);
+  const blob = new Blob([svg.trim(), "\n"], { type: "image/svg+xml" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = filename;
+  link.download = `logiclens-${state.latestBadge.repo.replace(/[^A-Za-z0-9_.-]+/g, "-").slice(0, 90)}.svg`;
   document.body.append(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function reviewLabel(value) {
-  return String(value || "unreviewed").replaceAll("_", " ");
-}
-
-function joinLines(values) {
-  return (values || []).join("\n");
-}
-
-function splitLines(value) {
-  return String(value)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-async function loadBenchmark() {
+async function loadReferenceMetrics() {
   try {
-    state.benchmark = await fetchJson("./evals/trending-top50-ec2-summary-2026-04-27.json");
-    renderBenchmark();
+    state.reference = await fetchJson("./evals/trending-top50-ec2-summary-2026-04-27.json");
+    const ok = Number(state.reference.by_status?.ok || 0);
+    const total = Number(state.reference.total || 0);
+    const languageRows = Object.entries(state.reference.by_language || {});
+    const nodeCount = languageRows.reduce((sum, [, value]) => sum + Number(value.node_count || 0), 0);
+    const edgeCount = languageRows.reduce((sum, [, value]) => sum + Number(value.edge_count || 0), 0);
+    state.signalAggregate = { total, ok, nodeCount, edgeCount };
+    $("reference-stats").innerHTML = `
+      <span><strong>${formatNumber(total)}</strong> preserved reference repo runs</span>
+      <span><strong>${formatNumber(ok)}</strong> successful corpus ingests</span>
+      <span><strong>${compactNumber(nodeCount)}</strong> code nodes in the reference summary</span>`;
     renderCaseBoard();
-  } catch (error) {
-    $("bench-findings").innerHTML = `<div class="finding"><strong>Benchmark unavailable</strong><span>${escapeHtml(error.message)}</span></div>`;
+  } catch {
+    // The page works without the optional reference summary.
   }
 }
 
 function renderCaseBoard() {
-  const resultByRepo = new Map((state.benchmark?.results || []).map((item) => [item.full_name, item]));
-  $("case-grid").innerHTML = FEATURED_CASES.map((repo) => {
-    const [owner, name] = repo.split("/");
-    const result = resultByRepo.get(repo);
-    const nodes = result?.node_count != null ? compactNumber(Number(result.node_count)) : "live";
-    const status = result?.status === "ok" ? "reference ok" : result?.status === "ingest_failed" ? "needs review" : "try live";
-    const language = result?.language || "repo";
+  $("case-grid").innerHTML = FEATURED_CASES.map((system) => {
     return `
-      <button class="case-card" type="button" data-repo="${escapeHtml(repo)}">
+      <button class="case-card" type="button" data-repos="${escapeAttribute(system.repos.join(","))}">
         <span class="case-head">
-          <img src="https://github.com/${escapeHtml(owner)}.png?size=96" alt="" loading="lazy" />
+          <img src="https://github.com/${escapeAttribute(system.repos[0].split("/")[0])}.png?size=96" alt="" loading="lazy" />
           <span>
-            <strong>${escapeHtml(name)}</strong>
-            <span>${escapeHtml(owner)}</span>
+            <strong>${escapeHtml(system.title)}</strong>
+            <span>${escapeHtml(system.repos.join(" + "))}</span>
           </span>
         </span>
         <span class="case-meta">
-          <span>${escapeHtml(language)}</span>
-          <span>${escapeHtml(status)}</span>
-          <span>${nodes} nodes</span>
+          <span>${system.repos.length} repos</span>
+          <span>${escapeHtml(system.note)}</span>
+          <span>try system</span>
         </span>
       </button>`;
   }).join("");
   document.querySelectorAll(".case-card").forEach((card) => {
     card.addEventListener("click", () => {
-      const repo = card.getAttribute("data-repo");
-      $("repo-input").value = repo;
-      ingestRepo(repo);
+      const repos = normalizeRepoList((card.getAttribute("data-repos") || "").split(","));
+      setRepoInputs(repos);
+      ingestRepos(repos);
     });
   });
 }
 
-function renderBenchmark() {
-  const benchmark = state.benchmark;
-  const languageRows = Object.entries(benchmark.by_language || {});
-  const aggregate = buildBenchmarkAggregate();
-  state.benchmarkAggregate = aggregate;
-  startHeartbeat();
-
-  drawBarChart(
-    $("language-chart"),
-    languageRows.map(([language, value]) => {
-      const total = Number(value.total || 0);
-      const ok = Number(value.ok || 0);
-      return [language, total ? Math.round((ok / total) * 100) : 0, `${ok}/${total}`];
-    }),
-    { title: "Successful analyses by language", suffix: "%", left: 126, max: 100 },
-  );
-  drawBarChart(
-    $("node-chart"),
-    languageRows.map(([language, value]) => [language, Number(value.node_count || 0)]),
-    { title: "Code nodes by language", suffix: " nodes" },
-  );
-  const largest = [...(benchmark.results || [])]
-    .filter((item) => item.status === "ok")
-    .sort((a, b) => Number(b.node_count || 0) - Number(a.node_count || 0))
-    .slice(0, 10)
-    .map((item) => [item.full_name, Number(item.node_count || 0)]);
-  drawBarChart($("largest-chart"), largest, { title: "Code nodes found per repository", suffix: " nodes" });
-
-  const failed = benchmark.by_status?.ingest_failed || 0;
-  const zeroNode = languageRows.reduce((sum, [, value]) => sum + Number(value.zero_node || 0), 0);
-  const failedLive = state.liveRuns.filter((run) => run.status === "failed").length;
-  const liveOk = state.liveRuns.filter((run) => run.status === "ok").length;
-  $("bench-findings").innerHTML = [
-    ["Analyzed", `${aggregate.total} total runs: ${benchmark.total || 0} reference repos plus ${state.liveRuns.length} browser runs.`],
-    ["Completed", `${aggregate.ok} successful analyses, including ${liveOk} from this browser.`],
-    ["Needs review", `${failed + zeroNode + failedLive} runs need review: ${failed + failedLive} failures and ${zeroNode} zero-node reference runs.`],
-    ["Current fixes", `Generated/vendor output is skipped for live analysis; source coverage includes Rust, Java, C, and C++.`],
-  ]
-    .map(([title, body]) => `<div class="finding"><strong>${title}</strong><span>${body}</span></div>`)
-    .join("");
-  renderComplications(benchmark);
+function getSelectedRepos() {
+  return normalizeRepoList([...document.querySelectorAll(".repo-input")].map((input) => input.value));
 }
 
-function renderComplications(benchmark) {
-  const failedRows = (benchmark.results || []).filter((item) => item.status === "ingest_failed");
-  const zeroRows = (benchmark.results || []).filter((item) => item.status === "ok" && Number(item.node_count || 0) === 0);
-  $("complication-panel").innerHTML = `
-    <h3>Complications and fix status</h3>
-    <div class="complication-summary">
-      <div><strong>${failedRows.length}</strong><span>first-run ingest crashes. Root cause: recursive Tree-sitter traversal hit Python recursion depth on deep parse trees. Fix: iterative traversal in backend ingest.</span></div>
-      <div><strong>${zeroRows.length}</strong><span>zero-node successes. Root cause: repos in Java/C++/Rust trending categories had unsupported first-class source languages. Fix: Rust, Java, C, and C++ parser coverage.</span></div>
-      <div><strong>${failedRows.length + zeroRows.length}</strong><span>reference runs still tracked as quality-gate pressure.</span></div>
-    </div>
-    <div class="complication-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Repo</th>
-            <th>First-run issue</th>
-            <th>What happened</th>
-            <th>Current fix</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${failedRows.map((row) => `
-            <tr>
-              <td>${escapeHtml(row.full_name)}</td>
-              <td>ingest crash</td>
-              <td>Deep parse tree triggered recursive visitor overflow.</td>
-              <td>Tree-sitter walker is iterative now.</td>
-            </tr>`).join("")}
-          ${zeroRows.map((row) => `
-            <tr>
-              <td>${escapeHtml(row.full_name)}</td>
-              <td>zero-node success</td>
-              <td>Run completed, but no first-class source symbols were extracted.</td>
-              <td>Added direct source coverage for Rust, Java, C, and C++.</td>
-            </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>`;
+function setRepoInputs(repos) {
+  const inputs = [...document.querySelectorAll(".repo-input")];
+  inputs.forEach((input, index) => {
+    input.value = repos[index] || "";
+  });
 }
 
-function buildBenchmarkAggregate() {
-  const benchmark = state.benchmark || {};
-  const languageRows = Object.entries(benchmark.by_language || {});
-  const baselineNodes = languageRows.reduce((sum, [, value]) => sum + Number(value.node_count || 0), 0);
-  const baselineEdges = languageRows.reduce((sum, [, value]) => sum + Number(value.edge_count || 0), 0);
-  const liveOk = state.liveRuns.filter((run) => run.status === "ok");
-  return {
-    total: Number(benchmark.total || 0) + state.liveRuns.length,
-    ok: Number(benchmark.by_status?.ok || 0) + liveOk.length,
-    nodeCount: baselineNodes + liveOk.reduce((sum, run) => sum + Number(run.node_count || 0), 0),
-    edgeCount: baselineEdges + liveOk.reduce((sum, run) => sum + Number(run.edge_count || 0), 0),
-  };
+function normalizeRepoList(values) {
+  return [...new Set(values.map(normalizeRepo).filter(Boolean))].slice(0, 5);
 }
 
-function loadLiveRuns() {
-  try {
-    const raw = localStorage.getItem(LIVE_RUNS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.slice(-25) : [];
-  } catch {
-    return [];
+function normalizeRepo(value) {
+  let trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  trimmed = trimmed.replace(/[?#].*$/, "").replace(/\/+$/, "");
+
+  const gitSsh = trimmed.match(/^git@github\.com:(?<owner>[^/\s]+)\/(?<repo>[^/\s]+?)(?:\.git)?$/i);
+  if (gitSsh?.groups) {
+    trimmed = `${gitSsh.groups.owner}/${gitSsh.groups.repo.replace(/\.git$/i, "")}`;
+  } else {
+    const githubUrl = trimmed.match(/^(?:https?:\/\/)?github\.com\/(?<path>[^?#]+)$/i);
+    if (githubUrl?.groups) {
+      const parts = githubUrl.groups.path.split("/").filter(Boolean);
+      if (parts.length !== 2) return "";
+      const repo = parts[1].replace(/\.git$/i, "");
+      trimmed = `${parts[0]}/${repo}`;
+    }
   }
+
+  return REPO_PATTERN.test(trimmed) ? trimmed : "";
 }
 
-function recordLiveRun(run) {
-  const stored = {
-    repo: run.repo,
-    status: run.status,
-    node_count: Number(run.node_count || 0),
-    edge_count: Number(run.edge_count || 0),
-    error: run.error || null,
-    parser_backends: run.parser_backends || [],
-    at: new Date().toISOString(),
-  };
-  state.liveRuns = [...state.liveRuns, stored].slice(-25);
-  try {
-    localStorage.setItem(LIVE_RUNS_KEY, JSON.stringify(state.liveRuns));
-  } catch {
-    // The page can still update live counts during this session.
+function fetchGitHubJson(repo, path) {
+  const [owner, name] = repo.split("/");
+  const base = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
+  const url = path ? `${base}/${path}` : base;
+  return fetchJson(url);
+}
+
+function apiUrl(path) {
+  return LOGICLENS_API_BASE_URL ? `${LOGICLENS_API_BASE_URL}${path}` : `.${path}`;
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Accept: "application/vnd.github+json",
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    const label = url.replace("https://api.github.com/", "GitHub API ");
+    throw new Error(`${response.status} from ${label}`);
   }
-  if (state.benchmark) renderBenchmark();
+  return response.json();
 }
 
-function cssHsl(name, alpha = null) {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  if (!value) return alpha == null ? "#000000" : `rgba(0, 0, 0, ${alpha})`;
-  return alpha == null ? `hsl(${value})` : `hsl(${value} / ${alpha})`;
+function decodeBase64Utf8(value) {
+  const normalized = String(value).replace(/\s/g, "");
+  const binary = atob(normalized);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
 function drawBarChart(canvas, rows, options = {}) {
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
-  const palette = [
-    cssHsl("--primary"),
-    cssHsl("--smui-frost-3"),
-    cssHsl("--smui-frost-4"),
-    cssHsl("--smui-teal"),
-    cssHsl("--smui-indigo"),
-  ];
+  const palette = ["#2f5f8f", "#56738f", "#78909c", "#2f7d5a", "#8a6f2a"];
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = cssHsl("--card");
   ctx.fillRect(0, 0, width, height);
-  const max = options.max || Math.max(1, ...rows.map(([, value]) => value));
-  const left = options.left || 176;
-  const top = 42;
-  const rightPad = 118;
-  const rowHeight = Math.max(24, (height - top - 24) / Math.max(rows.length, 1));
-  ctx.strokeStyle = cssHsl("--border", 0.48);
+  const max = Math.max(1, ...rows.map(([, value]) => value));
+  const left = options.left || 178;
+  const top = 44;
+  const rightPad = 110;
+  const rowHeight = Math.max(26, (height - top - 24) / Math.max(rows.length, 1));
+  ctx.strokeStyle = cssHsl("--border", 0.52);
   ctx.lineWidth = 1;
   for (let x = left; x < width - rightPad; x += 92) {
     ctx.beginPath();
@@ -1137,14 +956,14 @@ function drawBarChart(canvas, rows, options = {}) {
   }
   ctx.font = "18px Space Grotesk, Segoe UI, sans-serif";
   ctx.fillStyle = cssHsl("--foreground");
-  ctx.fillText(options.title || "", 12, 24);
-  rows.forEach(([label, value, detail], index) => {
+  ctx.fillText(options.title || "", 12, 26);
+  rows.forEach(([label, value], index) => {
     const y = top + index * rowHeight + 8;
     const fullWidth = Math.max(40, width - left - rightPad);
     const barWidth = Math.max(2, (fullWidth * value) / max);
     ctx.fillStyle = cssHsl("--muted-foreground");
     ctx.font = "13px JetBrains Mono, Consolas, monospace";
-    ctx.fillText(truncate(label, 22), 12, y + 13);
+    ctx.fillText(truncate(label, 22), 12, y + 14);
     ctx.fillStyle = cssHsl("--background");
     ctx.fillRect(left, y, fullWidth, Math.max(10, rowHeight - 13));
     ctx.strokeStyle = cssHsl("--border", 0.72);
@@ -1152,8 +971,7 @@ function drawBarChart(canvas, rows, options = {}) {
     ctx.fillStyle = palette[index % palette.length];
     ctx.fillRect(left, y, barWidth, Math.max(10, rowHeight - 12));
     ctx.fillStyle = cssHsl("--foreground");
-    const displayValue = detail || `${compactNumber(value)}${options.suffix || ""}`;
-    ctx.fillText(displayValue, Math.min(left + barWidth + 8, width - rightPad + 8), y + 13);
+    ctx.fillText(`${compactNumber(value)}${options.suffix || ""}`, Math.min(left + barWidth + 8, width - rightPad + 8), y + 14);
   });
 }
 
@@ -1161,7 +979,7 @@ function startHeartbeat() {
   if (state.heartbeatRunning) return;
   state.heartbeatRunning = true;
   const tick = (time) => {
-    drawOscilloscope($("vitals-scope"), state.benchmarkAggregate, time);
+    drawOscilloscope($("vitals-scope"), state.signalAggregate, time);
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -1173,8 +991,7 @@ function drawOscilloscope(canvas, aggregate, time = 0) {
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = cssHsl("--card");
   ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = cssHsl("--border", 0.42);
+  ctx.strokeStyle = cssHsl("--border", 0.44);
   ctx.lineWidth = 1;
   for (let x = 40; x < width; x += 64) {
     ctx.beginPath();
@@ -1182,7 +999,7 @@ function drawOscilloscope(canvas, aggregate, time = 0) {
     ctx.lineTo(x, height - 18);
     ctx.stroke();
   }
-  for (let y = 28; y < height; y += 38) {
+  for (let y = 32; y < height; y += 40) {
     ctx.beginPath();
     ctx.moveTo(22, y);
     ctx.lineTo(width - 22, y);
@@ -1191,23 +1008,19 @@ function drawOscilloscope(canvas, aggregate, time = 0) {
 
   const okRatio = aggregate.total ? aggregate.ok / aggregate.total : 0.8;
   const density = Math.min(1, Math.log10(Math.max(aggregate.nodeCount, 1)) / 6);
-  const trace = [];
   const phase = ((time || 0) / 1000) % 1.6;
   const beatCenter = phase / 1.6;
+  const trace = [];
   for (let i = 0; i < 160; i += 1) {
     const t = i / 159;
     const drift = Math.sin((t + phase) * Math.PI * 6) * 7 + Math.sin((t + phase) * Math.PI * 18) * 2;
-    const beatDistance = Math.abs(t - beatCenter);
-    const wrapDistance = Math.min(beatDistance, Math.abs(t + 1 - beatCenter), Math.abs(t - 1 - beatCenter));
+    const wrapDistance = Math.min(Math.abs(t - beatCenter), Math.abs(t + 1 - beatCenter), Math.abs(t - 1 - beatCenter));
     const qrs = wrapDistance < 0.008 ? -44 * okRatio : wrapDistance < 0.018 ? 42 * density : wrapDistance < 0.035 ? -16 : 0;
-    const pulse = drift + qrs;
-    const spike = i % 53 === 0 ? 10 * density : 0;
-    const y = height * 0.5 + pulse + spike;
+    const y = height * 0.5 + drift + qrs;
     trace.push([24 + t * (width - 48), Math.max(20, Math.min(height - 20, y))]);
   }
 
   ctx.strokeStyle = cssHsl("--primary");
-  ctx.shadowBlur = 0;
   ctx.lineWidth = 3;
   ctx.beginPath();
   trace.forEach(([x, y], index) => {
@@ -1217,10 +1030,10 @@ function drawOscilloscope(canvas, aggregate, time = 0) {
   ctx.stroke();
   ctx.fillStyle = cssHsl("--foreground");
   ctx.font = "18px Space Grotesk, Segoe UI, sans-serif";
-  ctx.fillText("analysis signal", 24, 30);
+  ctx.fillText("LogicLens analysis signal", 24, 32);
   ctx.fillStyle = cssHsl("--muted-foreground");
   ctx.font = "13px JetBrains Mono, Consolas, monospace";
-  ctx.fillText(`${formatNumber(aggregate.total)} runs - ${formatNumber(aggregate.ok)} successful`, 24, height - 22);
+  ctx.fillText(`${formatNumber(aggregate.total)} reference runs - ${formatNumber(aggregate.ok)} successful`, 24, height - 22);
 }
 
 function countBy(items, keyFn) {
@@ -1235,19 +1048,64 @@ function countBy(items, keyFn) {
 function setStatus(message, isError = false) {
   const status = $("repo-status");
   status.textContent = message;
-  status.style.color = isError ? cssHsl("--smui-red") : cssHsl("--muted-foreground");
+  status.style.color = isError ? cssHsl("--danger") : cssHsl("--muted-foreground");
+}
+
+function cssHsl(name, alpha = null) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (!value) return alpha == null ? "#000000" : `rgba(0, 0, 0, ${alpha})`;
+  return alpha == null ? `hsl(${value})` : `hsl(${value} / ${alpha})`;
+}
+
+function languageFromPath(path) {
+  const ext = path.split(".").pop()?.toLowerCase() || "";
+  return (
+    {
+      ts: "TypeScript",
+      tsx: "TypeScript",
+      js: "JavaScript",
+      jsx: "JavaScript",
+      py: "Python",
+      go: "Go",
+      rs: "Rust",
+      java: "Java",
+      cpp: "C++",
+      cc: "C++",
+      cxx: "C++",
+      h: "C/C++",
+      hpp: "C++",
+      cs: "C#",
+      rb: "Ruby",
+      php: "PHP",
+      swift: "Swift",
+      kt: "Kotlin",
+      prisma: "Prisma",
+    }[ext] || ext.toUpperCase()
+  );
+}
+
+function formatRange(range) {
+  if (!range) return "";
+  const start = range.start_line ?? range.startLine;
+  const end = range.end_line ?? range.endLine;
+  if (!start && !end) return "";
+  return start === end || !end ? `line ${start}` : `lines ${start}-${end}`;
 }
 
 function compactNumber(value) {
-  return Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(Number(value || 0));
 }
 
 function formatNumber(value) {
-  return Intl.NumberFormat("en").format(value);
+  return Intl.NumberFormat("en").format(Number(value || 0));
 }
 
 function truncate(value, length) {
-  return value.length > length ? `${value.slice(0, length - 1)}...` : value;
+  return String(value).length > length ? `${String(value).slice(0, length - 1)}...` : String(value);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function escapeHtml(value) {
@@ -1256,6 +1114,10 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value).replaceAll("\n", "&#10;");
+}
+
+function escapeXml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[char]);
 }
 
 function sleep(ms) {

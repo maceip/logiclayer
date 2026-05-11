@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import pytest
 
+from heart_transplant.artifact_store import artifact_root
+from heart_transplant.beta_lambda import lambda_handler
 from heart_transplant.beta_runtime import BetaLimits, normalize_public_github_repo, run_hosted_analysis
 
 
 def test_normalize_public_github_repo_accepts_owner_name_and_url() -> None:
     assert normalize_public_github_repo("openai/codex") == "openai/codex"
     assert normalize_public_github_repo("https://github.com/openai/codex.git") == "openai/codex"
+    assert normalize_public_github_repo("https://github.com/openai/codex/") == "openai/codex"
+    assert normalize_public_github_repo("git@github.com:openai/codex.git") == "openai/codex"
 
 
 @pytest.mark.parametrize("value", ["", "openai", "../x/y", "https://example.com/a/b", "openai/codex/tree/main"])
@@ -53,3 +58,83 @@ def test_run_hosted_analysis_uses_beta_ingest_budget(monkeypatch: pytest.MonkeyP
     assert "src/keep.ts" in paths
     assert "vendor/skip.ts" not in paths
     assert "huge.ts" not in paths
+
+
+def test_artifact_root_can_target_serverless_tmp(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("HEART_TRANSPLANT_ARTIFACT_ROOT", str(tmp_path / "artifacts"))
+    assert artifact_root() == (tmp_path / "artifacts").resolve()
+
+
+def test_lambda_rejects_non_github_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LOGICLENS_RATE_LIMIT_TABLE", raising=False)
+    response = lambda_handler(
+        {
+            "rawPath": "/api/health",
+            "requestContext": {"http": {"method": "GET"}},
+            "headers": {"origin": "https://example.com"},
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 403
+    assert "Access-Control-Allow-Origin" not in response["headers"]
+
+
+def test_lambda_health_allows_github_pages_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LOGICLENS_RATE_LIMIT_TABLE", raising=False)
+    response = lambda_handler(
+        {
+            "rawPath": "/api/health",
+            "requestContext": {"http": {"method": "GET"}},
+            "headers": {"origin": "https://maceip.github.io"},
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    assert response["headers"]["Access-Control-Allow-Origin"] == "https://maceip.github.io"
+    assert response["body"]
+    assert '"sync": true' in response["body"]
+
+
+def test_lambda_accepts_multi_repo_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LOGICLENS_RATE_LIMIT_TABLE", raising=False)
+
+    def fake_run(repo: str, *, limits=None):  # noqa: ANN001
+        return {
+            "repo": repo,
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "finished_at": "2026-01-01T00:00:01+00:00",
+            "duration_seconds": 1,
+            "summary": {
+                "node_count": 10,
+                "edge_count": 20,
+                "file_count": 3,
+                "parser_backends": ["python"],
+                "block_counts": {"Network Edge": 2},
+                "graph_integrity": {"overall_status": "pass"},
+                "manifest": {"required_artifacts_present": True},
+            },
+            "insights": [],
+            "runtime_capabilities": {},
+            "warnings": [],
+            "surfaces": [{"repo": repo, "path": "src/app.py", "block": "Network Edge", "confidence": 0.9, "signal": "route path"}],
+        }
+
+    monkeypatch.setattr("heart_transplant.beta_lambda.run_hosted_analysis", fake_run)
+    response = lambda_handler(
+        {
+            "rawPath": "/api/analyze",
+            "requestContext": {"http": {"method": "POST"}},
+            "headers": {"origin": "https://maceip.github.io"},
+            "body": json.dumps({"repos": ["pallets/flask", "pallets/werkzeug", "pallets/jinja"]}),
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    assert body["status"] == "succeeded"
+    assert body["result"]["summary"]["repo_count"] == 3
+    assert body["result"]["summary"]["node_count"] == 30
+    assert body["result"]["repos"] == ["pallets/flask", "pallets/werkzeug", "pallets/jinja"]

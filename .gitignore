@@ -1,15 +1,19 @@
 backend/.venv/
 backend/.venv-win/
 logiclens_cleanroom/.venv/
+venv/
 backend/.pytest_cache/
 backend/.pytest_tmp/
 .heart-transplant/
 .repocity/
 .pytest_tmp/
 vendor/github-repos/
+vendor/webtui/
+artifacts/
 node_modules/
 __pycache__/
 *.egg-info/
+.lambda-build/
 
 *.log
 .DS_Store
