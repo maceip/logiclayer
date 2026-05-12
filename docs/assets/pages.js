@@ -63,6 +63,7 @@ const FEATURED_CASES = [
   { title: "Python web app stack", repos: ["pallets/flask", "pallets/werkzeug", "pallets/jinja"], note: "App + WSGI + templates" },
   { title: "Testing plugin stack", repos: ["pytest-dev/pytest", "pytest-dev/pluggy"], note: "Runner + plugin machinery" },
 ];
+const DEMO_REPOS = [...new Set(FEATURED_CASES.flatMap((system) => system.repos))];
 const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 const LOGICLENS_API_BASE_URL = (window.LOGICLENS_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -85,17 +86,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("repo-form").addEventListener("submit", onRepoSubmit);
   $("load-featured-system").addEventListener("click", () => {
     setRepoInputs(FEATURED_SYSTEM);
-    ingestRepos(FEATURED_SYSTEM);
+    setStatus("Commerce stack loaded. Select more demo repos if needed, then run Analyze system.");
+  });
+  document.querySelectorAll(".repo-input").forEach((input) => {
+    input.addEventListener("input", () => syncRepoOptionState());
   });
   $("badge-copy").addEventListener("click", copyBadgeMarkdown);
   $("badge-download").addEventListener("click", downloadBadgeSvg);
 
+  renderRepoOptionGrid();
   const params = new URLSearchParams(window.location.search);
   const initialRepos = normalizeRepoList((params.get("repos") || params.get("repo") || "").split(",").filter(Boolean));
   if (initialRepos.length) {
     state.currentRepos = initialRepos;
     state.currentRepo = initialRepos.join(" + ");
     setRepoInputs(initialRepos);
+  } else {
+    setRepoInputs(getSelectedRepos());
   }
 
   renderCaseBoard();
@@ -851,7 +858,7 @@ function renderCaseBoard() {
         <span class="case-meta">
           <span>${system.repos.length} repos</span>
           <span>${escapeHtml(system.note)}</span>
-          <span>try system</span>
+          <span>load selection</span>
         </span>
       </button>`;
   }).join("");
@@ -859,9 +866,42 @@ function renderCaseBoard() {
     card.addEventListener("click", () => {
       const repos = normalizeRepoList((card.getAttribute("data-repos") || "").split(","));
       setRepoInputs(repos);
-      ingestRepos(repos);
+      setStatus(`Loaded ${repos.length} demo repos. Add or remove chips, then run Analyze system.`);
     });
   });
+}
+
+function renderRepoOptionGrid() {
+  const grid = $("repo-option-grid");
+  if (!grid) return;
+  grid.innerHTML = DEMO_REPOS.map((repo) => {
+    const [owner, name] = repo.split("/");
+    return `
+      <button class="repo-option" type="button" data-repo="${escapeAttribute(repo)}" aria-pressed="false">
+        <span>${escapeHtml(owner)}</span>
+        <strong>${escapeHtml(name)}</strong>
+      </button>`;
+  }).join("");
+  grid.querySelectorAll(".repo-option").forEach((button) => {
+    button.addEventListener("click", () => toggleRepoOption(button.getAttribute("data-repo") || ""));
+  });
+  syncRepoOptionState();
+}
+
+function toggleRepoOption(repo) {
+  if (!repo) return;
+  const selected = getSelectedRepos();
+  const existingIndex = selected.indexOf(repo);
+  if (existingIndex >= 0) {
+    selected.splice(existingIndex, 1);
+  } else if (selected.length >= 5) {
+    setStatus("The demo accepts up to five repositories. Remove one before adding another.", true);
+    return;
+  } else {
+    selected.push(repo);
+  }
+  setRepoInputs(selected);
+  setStatus(selected.length >= 2 ? `${selected.length} repositories selected for analysis.` : "Select at least two repositories for the system demo.");
 }
 
 function getSelectedRepos() {
@@ -869,9 +909,19 @@ function getSelectedRepos() {
 }
 
 function setRepoInputs(repos) {
+  const selected = normalizeRepoList(repos);
   const inputs = [...document.querySelectorAll(".repo-input")];
   inputs.forEach((input, index) => {
-    input.value = repos[index] || "";
+    input.value = selected[index] || "";
+  });
+  syncRepoOptionState(selected);
+}
+
+function syncRepoOptionState(selected = getSelectedRepos()) {
+  document.querySelectorAll(".repo-option").forEach((button) => {
+    const isSelected = selected.includes(button.getAttribute("data-repo") || "");
+    button.classList.toggle("is-selected", isSelected);
+    button.setAttribute("aria-pressed", String(isSelected));
   });
 }
 
