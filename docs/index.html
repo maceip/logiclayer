@@ -8,7 +8,7 @@
       name="description"
       content="A concise GitHub Pages showcase for this repository's LogicLens paper implementation and public repository analyzer."
     />
-    <link rel="stylesheet" href="./assets/pages.css?v=20260507-commerce-system-001" />
+    <link rel="stylesheet" href="./assets/pages.css?v=20260512-demo-selection-layout-001" />
   </head>
   <body>
     <main class="app-shell">
@@ -74,68 +74,47 @@
             maintained repositories combine into a working system.
           </p>
         </div>
-        <div class="system-map" aria-label="Commerce system relationship map">
-          <div class="map-node storefront">
-            <span>Storefront</span>
-            <strong>vercel/commerce</strong>
-            <small>products, cart, checkout UI</small>
+        <div class="system-demo" aria-label="Commerce system relationship map">
+          <div class="system-story">
+            <span class="story-kicker">One checkout journey</span>
+            <h3>From product page to paid order, across three repositories.</h3>
+            <p>
+              The example follows one connected path through storefront behavior, session
+              ownership, and payment handoff, then frames the questions LogicLens should
+              answer from code evidence.
+            </p>
+            <button id="load-featured-system" type="button">Use commerce stack</button>
           </div>
-          <div class="map-edge">session</div>
-          <div class="map-node auth">
-            <span>Identity</span>
-            <strong>nextauthjs/next-auth</strong>
-            <small>User, Session, Provider, Token</small>
+          <div class="commerce-flow">
+            <div class="flow-step">
+              <span>Storefront</span>
+              <strong>vercel/commerce</strong>
+              <small>products, cart, checkout UI</small>
+            </div>
+            <div class="flow-join" aria-hidden="true">session</div>
+            <div class="flow-step">
+              <span>Identity</span>
+              <strong>nextauthjs/next-auth</strong>
+              <small>User, Session, Provider, Token</small>
+            </div>
+            <div class="flow-join" aria-hidden="true">payment intent</div>
+            <div class="flow-step">
+              <span>Payments</span>
+              <strong>stripe/stripe-node</strong>
+              <small>Checkout, Customer, PaymentIntent</small>
+            </div>
           </div>
-          <div class="map-edge">payment intent</div>
-          <div class="map-node payments">
-            <span>Payments</span>
-            <strong>stripe/stripe-node</strong>
-            <small>Checkout, Customer, PaymentIntent</small>
+          <ol class="journey-strip" aria-label="Checkout workflow">
+            <li><strong>Browse</strong><span>products and cart surfaces</span></li>
+            <li><strong>Session</strong><span>user/account identity boundary</span></li>
+            <li><strong>Checkout</strong><span>order + payment handoff</span></li>
+            <li><strong>Webhook</strong><span>payment result and fulfillment seam</span></li>
+          </ol>
+          <div class="demo-questions" aria-label="Questions LogicLens should answer">
+            <p><strong>Ask:</strong> Where is Session handled?</p>
+            <p><strong>Ask:</strong> Trace checkout to payment.</p>
+            <p><strong>Ask:</strong> If payment creation changes, what is affected?</p>
           </div>
-        </div>
-        <div class="system-showcase">
-          <article class="system-card">
-            <strong>Project understanding</strong>
-            <p>What repos exist, what role each plays, and how storefront, identity, and payment code relate.</p>
-          </article>
-          <article class="system-card">
-            <strong>Entity and workflow tracing</strong>
-            <p>Where User, Session, Cart, Checkout, Order, Customer, and Payment surfaces appear.</p>
-          </article>
-          <article class="system-card">
-            <strong>Code-grounded graph answers</strong>
-            <p>Claims should cite concrete files, source ranges, graph neighborhoods, and change-impact seams.</p>
-          </article>
-        </div>
-        <div class="workflow-rail" aria-label="Checkout workflow">
-          <div><strong>Browse</strong><span>products and cart surfaces</span></div>
-          <div><strong>Session</strong><span>user/account identity boundary</span></div>
-          <div><strong>Checkout</strong><span>order + payment handoff</span></div>
-          <div><strong>Webhook</strong><span>payment result and fulfillment seam</span></div>
-        </div>
-        <div class="qa-board">
-          <article>
-            <span>Ask LogicLens</span>
-            <strong>Where is Session handled?</strong>
-            <p>Return auth/session files and neighboring storefront callers.</p>
-          </article>
-          <article>
-            <span>Ask LogicLens</span>
-            <strong>Trace checkout to payment.</strong>
-            <p>Show cart/checkout UI, payment SDK calls, and webhook-like seams.</p>
-          </article>
-          <article>
-            <span>Ask LogicLens</span>
-            <strong>If I change payment creation, what is affected?</strong>
-            <p>Rank code paths by graph proximity and architecture block.</p>
-          </article>
-        </div>
-        <div class="system-why">
-          <div>
-            <strong>What the platform should explain</strong>
-            <p>Where a shopping session becomes a checkout, where payment behavior is delegated, which repo owns each concern, and which evidence anchors a developer should inspect before changing the flow.</p>
-          </div>
-          <button id="load-featured-system" type="button">Load commerce stack</button>
         </div>
       </section>
 
@@ -162,6 +141,13 @@
             <input class="repo-input" name="repo-3" type="text" value="stripe/stripe-node" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 3" />
             <input class="repo-input" name="repo-4" type="text" value="" placeholder="optional fourth repo" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 4" />
             <input class="repo-input" name="repo-5" type="text" value="" placeholder="optional fifth repo" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 5" />
+          </div>
+          <div class="demo-repo-panel" aria-labelledby="demo-repo-title">
+            <div class="repo-form-head">
+              <label id="demo-repo-title">Demo repository picker</label>
+              <span>Select multiple chips; the inputs above stay editable.</span>
+            </div>
+            <div class="repo-option-grid" id="repo-option-grid"></div>
           </div>
           <button type="submit">Analyze system</button>
           <p id="repo-status" class="status-text" role="status">Checking analyzer runtime.</p>
@@ -260,6 +246,6 @@
     <script>
       window.LOGICLENS_API_BASE_URL = "https://ml4rer2cg2nnx7ja6nkalrdnu40xlwpm.lambda-url.eu-central-1.on.aws";
     </script>
-    <script src="./assets/pages.js?v=20260507-commerce-system-001"></script>
+    <script src="./assets/pages.js?v=20260512-demo-selection-layout-001"></script>
   </body>
 </html>

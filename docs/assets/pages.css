@@ -284,12 +284,6 @@
   .answer-card,
   .assessment-hero,
   .assessment-card,
-  .system-card,
-  .system-why,
-  .map-node,
-  .map-edge,
-  .qa-board article,
-  .workflow-rail div,
   .repo-role,
   .evidence-list li,
   .qa-answer,
@@ -313,11 +307,6 @@
   .answer-card::before,
   .assessment-hero::before,
   .assessment-card::before,
-  .system-card::before,
-  .system-why::before,
-  .map-node::before,
-  .qa-board article::before,
-  .workflow-rail div::before,
   .repo-role::before,
   .qa-answer::before,
   .empty-card::before {
@@ -342,11 +331,6 @@
   .answer-card::after,
   .assessment-hero::after,
   .assessment-card::after,
-  .system-card::after,
-  .system-why::after,
-  .map-node::after,
-  .qa-board article::after,
-  .workflow-rail div::after,
   .repo-role::after,
   .qa-answer::after,
   .empty-card::after {
@@ -363,8 +347,6 @@
   .tree-panel,
   .assessment-hero,
   .assessment-card,
-  .system-card,
-  .system-why,
   .badge-preview,
   .badge-share,
   .answer-card,
@@ -390,11 +372,12 @@
   .case-band,
   .results-band,
   .assessment-panel,
-  .workflow-rail,
-  .qa-board,
   .answer-grid,
   .case-grid,
-  .system-showcase {
+  .system-demo,
+  .commerce-flow,
+  .journey-strip,
+  .demo-questions {
     display: grid;
     gap: 1lh;
   }
@@ -414,8 +397,8 @@
 
   .mini-stats strong,
   .runtime-panel strong,
-  .system-card strong,
-  .system-why strong,
+  .flow-step strong,
+  .journey-strip strong,
   .assessment-card > strong,
   .assessment-hero h3,
   .answer-card strong,
@@ -437,8 +420,10 @@
   .repo-form label,
   .badge-share label,
   .repo-form-head,
-  .system-card p,
-  .system-why p,
+  .system-story p,
+  .flow-step small,
+  .journey-strip span,
+  .demo-questions p,
   .assessment-hero p,
   .assessment-card p,
   .qa-answer p,
@@ -448,9 +433,6 @@
   .evidence-list span,
   .evidence-list small,
   .repo-role small,
-  .workflow-rail span,
-  .qa-board p,
-  .map-node small,
   .case-head span,
   .case-meta {
     color: var(--foreground1);
@@ -463,14 +445,11 @@
   }
 
   .proof-grid,
-  .system-showcase,
-  .qa-board {
+  .demo-questions {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .proof-card,
-  .system-card,
-  .qa-board article,
   .case-card {
     min-height: 10lh;
   }
@@ -491,6 +470,60 @@
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 1ch;
+  }
+
+  .demo-repo-panel {
+    display: grid;
+    gap: 0.75lh;
+    padding: 1lh 0;
+    border-top: 1px dashed var(--foreground2);
+    border-bottom: 1px dashed var(--foreground2);
+  }
+
+  .repo-option-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(20ch, 1fr));
+    gap: 1ch;
+  }
+
+  .repo-option {
+    min-height: 4lh;
+    padding: 0.7lh 1ch;
+    border-color: var(--panel-border);
+    display: grid;
+    justify-items: start;
+    gap: 0.2lh;
+    color: var(--foreground0);
+    background: rgba(16, 21, 29, 0.74);
+    box-shadow: none;
+    text-align: left;
+    text-transform: none;
+    white-space: normal;
+  }
+
+  .repo-option::before,
+  .repo-option::after {
+    content: none;
+  }
+
+  .repo-option span {
+    color: var(--foreground1);
+    font-size: 12px;
+  }
+
+  .repo-option strong {
+    overflow-wrap: anywhere;
+  }
+
+  .repo-option.is-selected {
+    border-color: var(--accent-green);
+    background:
+      linear-gradient(90deg, rgba(134, 239, 172, 0.18), transparent 70%),
+      var(--background1);
+  }
+
+  .repo-option.is-selected span {
+    color: var(--accent-green);
   }
 
   .runtime-panel {
@@ -516,23 +549,56 @@
     border: 1px solid var(--foreground2);
   }
 
-  .system-map {
+  .system-demo {
+    gap: 2lh;
+  }
+
+  .system-story {
+    max-width: 82ch;
+    padding-left: 2ch;
+    border-left: 2px solid var(--accent-cyan);
+  }
+
+  .story-kicker {
+    display: block;
+    margin-bottom: 0.75lh;
+    color: var(--accent-green);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .system-story h3 {
+    max-width: 30ch;
+    margin-bottom: 0.75lh;
+    font-size: clamp(1.25rem, 2.5vw, 2rem);
+    line-height: 1.05;
+  }
+
+  .system-story p {
+    max-width: 78ch;
+    line-height: 1.55;
+  }
+
+  .commerce-flow {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 12ch minmax(0, 1fr) 14ch minmax(0, 1fr);
     align-items: center;
-    gap: 1ch;
+    gap: 1.5ch;
   }
 
-  .map-node {
-    min-height: 11lh;
-    padding: 1lh 1ch;
+  .flow-step {
+    min-height: 8lh;
+    padding: 0.75lh 0 0;
+    border-top: 2px solid color-mix(in srgb, var(--accent-cyan) 72%, transparent);
     display: grid;
     align-content: space-between;
     overflow: hidden;
+    background: transparent;
   }
 
-  .map-node span,
-  .qa-board span,
+  .flow-step span,
   .assessment-card > span,
   .evidence-list span {
     color: var(--accent-green);
@@ -541,46 +607,49 @@
     text-transform: uppercase;
   }
 
-  .map-node strong {
+  .flow-step strong {
     display: block;
     color: var(--accent-cyan);
     font-size: 1.15rem;
     overflow-wrap: anywhere;
   }
 
-  .map-edge {
+  .flow-join {
     min-width: 10ch;
-    padding: 0.5lh 1ch;
     color: var(--accent-amber);
     text-align: center;
     text-transform: uppercase;
     font-size: 12px;
   }
 
-  .map-edge::before,
-  .map-edge::after {
+  .flow-join::before,
+  .flow-join::after {
     content: "──";
     color: var(--foreground2);
   }
 
-  .workflow-rail {
+  .journey-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     counter-reset: workflow;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-  .workflow-rail div {
-    min-height: 8lh;
-    padding: 1lh 1ch;
+  .journey-strip li {
+    min-height: 7lh;
+    padding: 0.75lh 0 0;
+    border-top: 1px solid var(--foreground2);
   }
 
-  .workflow-rail div > strong::before {
+  .journey-strip li > strong::before {
     counter-increment: workflow;
-    content: "[0" counter(workflow) "] ";
+    content: "0" counter(workflow) " / ";
     color: var(--accent-cyan);
   }
 
-  .workflow-rail strong,
-  .workflow-rail span,
+  .journey-strip strong,
+  .journey-strip span,
   .repo-role strong,
   .repo-role span,
   .repo-role small,
@@ -592,20 +661,23 @@
     display: block;
   }
 
-  .workflow-rail span {
+  .journey-strip span {
     margin-top: 0.5lh;
     line-height: 1.35;
   }
 
-  .qa-board article {
-    padding: 1lh 1ch;
+  .demo-questions {
+    padding-top: 1lh;
+    border-top: 1px dashed var(--foreground2);
   }
 
-  .qa-board strong {
-    display: block;
-    margin: 0.5lh 0;
-    color: var(--foreground0);
-    font-size: 1rem;
+  .demo-questions p {
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  .demo-questions strong {
+    color: var(--accent-green);
   }
 
   .assessment-grid {
@@ -846,11 +918,9 @@
   @media (max-width: 980px) {
     .hero-band,
     .proof-grid,
-    .system-map,
-    .system-showcase,
-    .workflow-rail,
-    .qa-board,
-    .system-why,
+    .commerce-flow,
+    .journey-strip,
+    .demo-questions,
     .runtime-panel,
     .mini-stats,
     .badge-layout,
@@ -878,9 +948,21 @@
 
     .hero-actions .button-like,
     .repo-form > button,
-    .system-why button,
+    .system-story button,
     .badge-actions button {
       width: 100%;
+    }
+
+    .flow-join {
+      text-align: left;
+    }
+
+    .flow-join::before {
+      content: "↓ ";
+    }
+
+    .flow-join::after {
+      content: "";
     }
   }
 }
