@@ -58,7 +58,6 @@ const PATH_SIGNALS = [
 const SOURCE_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|prisma|java|rs|cpp|cc|cxx|h|hpp|cs|rb|php|swift|kt)$/i;
 const SKIP_PATHS = /(^|\/)(node_modules|\.git|dist|build|target|vendor|coverage|\.next|\.venv|\.venv-win|__pycache__)\//i;
 const FEATURED_SYSTEM = ["vercel/commerce", "nextauthjs/next-auth", "stripe/stripe-node"];
-const DEFAULT_REPOS = FEATURED_SYSTEM.slice(0, 2);
 const FEATURED_CASES = [
   { title: "Commerce checkout stack", repos: FEATURED_SYSTEM, note: "Storefront + auth + payments" },
   { title: "Python web app stack", repos: ["pallets/flask", "pallets/werkzeug", "pallets/jinja"], note: "App + WSGI + templates" },
@@ -68,8 +67,8 @@ const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 const LOGICLENS_API_BASE_URL = (window.LOGICLENS_API_BASE_URL || "").replace(/\/+$/, "");
 
 const state = {
-  currentRepo: DEFAULT_REPOS.join(" + "),
-  currentRepos: [...DEFAULT_REPOS],
+  currentRepo: FEATURED_SYSTEM.join(" + "),
+  currentRepos: [...FEATURED_SYSTEM],
   surfaces: [],
   reference: null,
   backendAvailable: false,
@@ -84,24 +83,8 @@ const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", async () => {
   $("repo-form").addEventListener("submit", onRepoSubmit);
-  $("repo-list").addEventListener("input", updateRepoSelectionUi);
-  document.querySelectorAll(".repo-chip").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (button.getAttribute("data-action") === "clear") {
-        setRepoInputs([]);
-        updateRepoSelectionUi();
-        $("repo-list").focus();
-        return;
-      }
-      const repos = normalizeRepoList((button.getAttribute("data-repos") || "").split(","));
-      setRepoInputs(repos);
-      updateRepoSelectionUi();
-      $("repo-list").focus();
-    });
-  });
-  $("load-featured-system")?.addEventListener("click", () => {
+  $("load-featured-system").addEventListener("click", () => {
     setRepoInputs(FEATURED_SYSTEM);
-    updateRepoSelectionUi();
     ingestRepos(FEATURED_SYSTEM);
   });
   $("badge-copy").addEventListener("click", copyBadgeMarkdown);
@@ -110,17 +93,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(window.location.search);
   const initialRepos = normalizeRepoList((params.get("repos") || params.get("repo") || "").split(",").filter(Boolean));
   if (initialRepos.length) {
-    state.currentRepos = initialRepos.slice(0, 5);
-    state.currentRepo = state.currentRepos.join(" + ");
-    setRepoInputs(state.currentRepos);
+    state.currentRepos = initialRepos;
+    state.currentRepo = initialRepos.join(" + ");
+    setRepoInputs(initialRepos);
   }
-  updateRepoSelectionUi();
 
   renderCaseBoard();
   renderEmptyResults();
   renderEmptyBadge();
   startHeartbeat();
-  await detectBackend();
+  await Promise.allSettled([loadReferenceMetrics(), detectBackend()]);
 
   if (params.get("autorun") === "1" && state.currentRepos.length >= 2) {
     ingestRepos(state.currentRepos);
@@ -131,12 +113,10 @@ async function onRepoSubmit(event) {
   event.preventDefault();
   const repos = getSelectedRepos();
   if (repos.length < 2 || repos.length > 5) {
-    updateRepoSelectionUi();
-    setStatus("Enter 2 to 5 unique public GitHub repositories, one per line.", true);
+    setStatus("Enter between 2 and 5 unique root GitHub repositories.", true);
     return;
   }
   setRepoInputs(repos);
-  updateRepoSelectionUi();
   await ingestRepos(repos);
 }
 
@@ -170,8 +150,8 @@ async function ingestRepos(repos) {
   } finally {
     state.isAnalyzing = false;
     button.classList.remove("is-loading");
+    button.disabled = false;
     button.textContent = "Analyze system";
-    updateRepoSelectionUi();
   }
 }
 
@@ -180,7 +160,7 @@ async function detectBackend() {
     const health = await fetchJson(apiUrl("/api/health"));
     state.backendAvailable = Boolean(health.ok);
     $("runtime-mode").textContent = health.sync ? "hosted Lambda analyzer; invoke-and-return" : `hosted backend API; ${health.active_jobs}/${health.max_active_jobs} active jobs`;
-    setStatus("Hosted analyzer ready. Add 2 to 5 repositories and run a system analysis.");
+    setStatus("Hosted analyzer ready for a public GitHub repository.");
   } catch {
     state.backendAvailable = false;
     $("runtime-mode").textContent = "hosted analyzer unavailable";
@@ -369,13 +349,13 @@ function renderEmptyResults() {
   $("answer-grid").innerHTML = `
     <article class="answer-card">
       <strong>Run a repo to get a map.</strong>
-      <p>Add 2 to 5 repositories, then LogicLens will classify file and code surfaces into likely architecture blocks with concrete evidence rows.</p>
+      <p>The analyzer will classify file and code surfaces into likely architecture blocks, then show concrete evidence rows.</p>
     </article>
     <article class="answer-card">
       <strong>Why LogicLens?</strong>
       <p>The paper's core idea is graph-backed software understanding. This implementation exposes that idea through practical repo analysis.</p>
     </article>`;
-  $("block-list").innerHTML = `<div class="block-pill"><strong>Waiting for analysis</strong><span>Submit 2 to 5 public GitHub repositories.</span></div>`;
+  $("block-list").innerHTML = `<div class="block-pill"><strong>Waiting for analysis</strong><span>Submit 2-5 public GitHub repositories.</span></div>`;
   $("surface-table").innerHTML = `<tr><td colspan="4">No system analyzed yet.</td></tr>`;
   $("block-tree").innerHTML = `<div class="empty-card">No system tree yet.</div>`;
   $("assessment-panel").innerHTML = `
@@ -871,7 +851,7 @@ function renderCaseBoard() {
         <span class="case-meta">
           <span>${system.repos.length} repos</span>
           <span>${escapeHtml(system.note)}</span>
-          <span>run system</span>
+          <span>try system</span>
         </span>
       </button>`;
   }).join("");
@@ -879,26 +859,16 @@ function renderCaseBoard() {
     card.addEventListener("click", () => {
       const repos = normalizeRepoList((card.getAttribute("data-repos") || "").split(","));
       setRepoInputs(repos);
-      updateRepoSelectionUi();
       ingestRepos(repos);
     });
   });
 }
 
 function getSelectedRepos() {
-  const textArea = $("repo-list");
-  if (textArea) {
-    return normalizeRepoList(textArea.value.split(/[\n,]+/));
-  }
   return normalizeRepoList([...document.querySelectorAll(".repo-input")].map((input) => input.value));
 }
 
 function setRepoInputs(repos) {
-  const textArea = $("repo-list");
-  if (textArea) {
-    textArea.value = repos.join("\n");
-    return;
-  }
   const inputs = [...document.querySelectorAll(".repo-input")];
   inputs.forEach((input, index) => {
     input.value = repos[index] || "";
@@ -906,36 +876,7 @@ function setRepoInputs(repos) {
 }
 
 function normalizeRepoList(values) {
-  return [...new Set(values.map(normalizeRepo).filter(Boolean))];
-}
-
-function updateRepoSelectionUi() {
-  const repos = getSelectedRepos();
-  const count = repos.length;
-  const countLabel = $("selected-repo-count");
-  const validation = $("repo-validation");
-  const submit = document.querySelector("#repo-form button[type='submit']");
-  const valid = count >= 2 && count <= 5;
-
-  if (countLabel) {
-    countLabel.textContent = `${count} selected`;
-    countLabel.classList.toggle("is-invalid", !valid);
-  }
-  if (validation) {
-    validation.textContent =
-      count === 0
-        ? "Paste at least two repositories to start."
-        : count === 1
-          ? "Add one more repository to run a system analysis."
-          : count > 5
-            ? "Remove repositories until five or fewer remain."
-            : `Ready to analyze ${count} repositories.`;
-    validation.classList.toggle("is-invalid", !valid);
-  }
-  if (submit) {
-    submit.disabled = state.isAnalyzing || !valid;
-  }
-  return valid;
+  return [...new Set(values.map(normalizeRepo).filter(Boolean))].slice(0, 5);
 }
 
 function normalizeRepo(value) {
@@ -1035,7 +976,6 @@ function drawBarChart(canvas, rows, options = {}) {
 }
 
 function startHeartbeat() {
-  if (!$("vitals-scope")) return;
   if (state.heartbeatRunning) return;
   state.heartbeatRunning = true;
   const tick = (time) => {

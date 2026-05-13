@@ -131,16 +131,19 @@
   }
 
   h1 {
-    max-width: 16ch;
+    max-width: 18ch;
     margin-bottom: 1lh;
     color: var(--foreground0);
-    font-size: clamp(2.75rem, 7vw, 5.75rem);
-    line-height: 0.94;
-    letter-spacing: -0.06em;
+    font-size: clamp(3rem, 8vw, 6.75rem);
+    line-height: 0.88;
+    letter-spacing: -0.08em;
+    text-transform: uppercase;
   }
 
   h1::after {
-    content: none;
+    content: "_";
+    color: var(--accent-cyan);
+    animation: caret 1.1s steps(1) infinite;
   }
 
   @keyframes caret {
@@ -269,7 +272,6 @@
   }
 
   .signal-card,
-  .value-card,
   .proof-card,
   .runtime-panel,
   .badge-preview,
@@ -299,7 +301,6 @@
   }
 
   .signal-card::before,
-  .value-card::before,
   .proof-card::before,
   .runtime-panel::before,
   .badge-preview::before,
@@ -329,7 +330,6 @@
   }
 
   .signal-card::after,
-  .value-card::after,
   .proof-card::after,
   .runtime-panel::after,
   .badge-preview::after,
@@ -359,7 +359,6 @@
   }
 
   .signal-card,
-  .value-card,
   .chart-card,
   .tree-panel,
   .assessment-hero,
@@ -402,46 +401,6 @@
 
   .mini-stats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .value-card {
-    display: grid;
-    gap: 1lh;
-  }
-
-  .value-list {
-    display: grid;
-    gap: 0.75lh;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .value-list li {
-    display: grid;
-    gap: 0.25lh;
-    padding-bottom: 0.75lh;
-    border-bottom: 1px dashed var(--foreground2);
-  }
-
-  .value-list li:last-child {
-    padding-bottom: 0;
-    border-bottom: 0;
-  }
-
-  .value-list strong,
-  .value-list span {
-    display: block;
-  }
-
-  .value-list strong {
-    color: var(--foreground0);
-    font-size: 1rem;
-  }
-
-  .value-list span {
-    color: var(--foreground1);
-    line-height: 1.5;
   }
 
   .mini-stats span,
@@ -532,39 +491,6 @@
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 1ch;
-  }
-
-  .repo-textarea {
-    min-height: 8lh;
-    padding: 1lh 1ch;
-    line-height: 1.6;
-  }
-
-  .repo-helper {
-    margin: -0.45lh 0 0;
-    color: var(--foreground1);
-    font-size: 0.9rem;
-  }
-
-  .validation-text {
-    color: var(--accent-green);
-  }
-
-  .validation-text.is-invalid,
-  #selected-repo-count.is-invalid {
-    color: var(--accent-red);
-  }
-
-  .repo-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1ch;
-  }
-
-  .repo-chip {
-    min-height: 2.5lh;
-    padding-inline: 1.25ch;
-    box-shadow: none;
   }
 
   .runtime-panel {

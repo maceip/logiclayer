@@ -8,73 +8,160 @@
       name="description"
       content="A concise GitHub Pages showcase for this repository's LogicLens paper implementation and public repository analyzer."
     />
-    <link rel="stylesheet" href="./assets/pages.css?v=20260511-pages-ux-cleanup-001" />
+    <link rel="stylesheet" href="./assets/pages.css?v=20260507-commerce-system-001" />
   </head>
   <body>
     <main class="app-shell">
       <section class="hero-band" aria-labelledby="page-title">
         <div class="hero-copy">
-          <p class="eyebrow">LogicLens public analyzer</p>
-          <h1 id="page-title">Understand a system across repos.</h1>
+          <p class="eyebrow">LogicLens paper implementation / arXiv:2601.10773</p>
+          <h1 id="page-title">Architecture maps for real GitHub systems.</h1>
           <p class="lede">
-            Paste two or more public GitHub repositories. LogicLens runs the hosted
-            Python analyzer, builds an evidence-backed graph, and shows which files,
-            entities, and integration seams matter before you change the code.
+            This repository is one implementation of the LogicLens idea: parse codebases,
+            build an evidence-backed graph, classify architecture blocks, and answer
+            practical questions about where a change should land.
           </p>
           <div class="hero-actions">
-            <a class="button-like" href="#try-analyzer">Analyze repos</a>
+            <a class="button-like" href="#system-example">See the system demo</a>
             <a class="button-like secondary" href="https://arxiv.org/abs/2601.10773">Read the paper</a>
           </div>
         </div>
-        <div class="value-card" aria-label="What LogicLens returns">
-          <p class="eyebrow">what you get back</p>
-          <ul class="value-list">
-            <li><strong>Repo roles</strong><span>Which repository owns which part of the system.</span></li>
-            <li><strong>Workflow anchors</strong><span>User, session, checkout, payment, and other entity surfaces.</span></li>
-            <li><strong>Grounded evidence</strong><span>Concrete files, ranges, architecture blocks, and graph receipts.</span></li>
-          </ul>
+        <div class="signal-card" aria-label="Implementation pulse">
+          <canvas id="vitals-scope" width="720" height="240" aria-label="LogicLens analysis signal"></canvas>
           <div class="mini-stats" id="reference-stats">
-            <span><strong>2-5 repos</strong> per hosted run</span>
-            <span><strong>Lambda</strong> backend analysis</span>
-            <span><strong>Public GitHub</strong> sources only</span>
+            <span><strong>Projects</strong> repo roles + system boundaries</span>
+            <span><strong>Entities</strong> user, session, order, payment anchors</span>
+            <span><strong>Evidence</strong> paths, ranges, neighborhoods, Q&A</span>
           </div>
+        </div>
+      </section>
+
+      <section class="proof-band" aria-labelledby="proof-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">what shipped in the latest commits</p>
+            <h2 id="proof-title">A paper-shaped implementation, not a pitch deck.</h2>
+          </div>
+          <p class="section-note">
+            The page focuses on the public surface: repo intake, graph evidence, operator answers,
+            and a badge you can share after a run.
+          </p>
+        </div>
+        <div class="proof-grid" id="reference-facts">
+          <article class="proof-card">
+            <strong>Clean-room LogicLens pipeline</strong>
+            <p>Structural graph, semantic layer, retrieval tools, and a ReAct loop in <code>logiclens_cleanroom/</code>.</p>
+          </article>
+          <article class="proof-card">
+            <strong>Evidence-backed answers</strong>
+            <p>Codes Tool parity work routes architecture questions through concrete nodes, files, and evidence bundles.</p>
+          </article>
+          <article class="proof-card">
+            <strong>Launchable demo path</strong>
+            <p>The backend includes a LogicLens demo orchestrator and beta-safe hosted analyzer for public GitHub repos.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="system-example-band" id="system-example" aria-labelledby="system-example-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">featured multi-repo example</p>
+            <h2 id="system-example-title">Next.js commerce: storefront + sessions + payments.</h2>
+          </div>
+          <p class="section-note">
+            LogicLens is most useful when a developer needs to understand how independently
+            maintained repositories combine into a working system.
+          </p>
+        </div>
+        <div class="system-map" aria-label="Commerce system relationship map">
+          <div class="map-node storefront">
+            <span>Storefront</span>
+            <strong>vercel/commerce</strong>
+            <small>products, cart, checkout UI</small>
+          </div>
+          <div class="map-edge">session</div>
+          <div class="map-node auth">
+            <span>Identity</span>
+            <strong>nextauthjs/next-auth</strong>
+            <small>User, Session, Provider, Token</small>
+          </div>
+          <div class="map-edge">payment intent</div>
+          <div class="map-node payments">
+            <span>Payments</span>
+            <strong>stripe/stripe-node</strong>
+            <small>Checkout, Customer, PaymentIntent</small>
+          </div>
+        </div>
+        <div class="system-showcase">
+          <article class="system-card">
+            <strong>Project understanding</strong>
+            <p>What repos exist, what role each plays, and how storefront, identity, and payment code relate.</p>
+          </article>
+          <article class="system-card">
+            <strong>Entity and workflow tracing</strong>
+            <p>Where User, Session, Cart, Checkout, Order, Customer, and Payment surfaces appear.</p>
+          </article>
+          <article class="system-card">
+            <strong>Code-grounded graph answers</strong>
+            <p>Claims should cite concrete files, source ranges, graph neighborhoods, and change-impact seams.</p>
+          </article>
+        </div>
+        <div class="workflow-rail" aria-label="Checkout workflow">
+          <div><strong>Browse</strong><span>products and cart surfaces</span></div>
+          <div><strong>Session</strong><span>user/account identity boundary</span></div>
+          <div><strong>Checkout</strong><span>order + payment handoff</span></div>
+          <div><strong>Webhook</strong><span>payment result and fulfillment seam</span></div>
+        </div>
+        <div class="qa-board">
+          <article>
+            <span>Ask LogicLens</span>
+            <strong>Where is Session handled?</strong>
+            <p>Return auth/session files and neighboring storefront callers.</p>
+          </article>
+          <article>
+            <span>Ask LogicLens</span>
+            <strong>Trace checkout to payment.</strong>
+            <p>Show cart/checkout UI, payment SDK calls, and webhook-like seams.</p>
+          </article>
+          <article>
+            <span>Ask LogicLens</span>
+            <strong>If I change payment creation, what is affected?</strong>
+            <p>Rank code paths by graph proximity and architecture block.</p>
+          </article>
+        </div>
+        <div class="system-why">
+          <div>
+            <strong>What the platform should explain</strong>
+            <p>Where a shopping session becomes a checkout, where payment behavior is delegated, which repo owns each concern, and which evidence anchors a developer should inspect before changing the flow.</p>
+          </div>
+          <button id="load-featured-system" type="button">Load commerce stack</button>
         </div>
       </section>
 
       <section class="analyzer-band" id="try-analyzer" aria-labelledby="analyzer-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">run the analyzer</p>
-            <h2 id="analyzer-title">Choose the repos that make up one system.</h2>
+            <p class="eyebrow">try analyzing a GitHub system</p>
+            <h2 id="analyzer-title">Pick 2 to 5 public repositories.</h2>
           </div>
           <p class="section-note">
-            Use <code>owner/name</code> or root GitHub URLs. Put one repository on each line,
-            then run the hosted Lambda backend.
+            Use <code>owner/name</code> or root GitHub URLs. The GitHub Pages page calls the
+            hosted Python analyzer so the demo runs the real backend path across the selected repos.
           </p>
         </div>
 
         <form id="repo-form" class="repo-form">
           <div class="repo-form-head">
-            <label for="repo-list">Public GitHub repositories</label>
-            <span id="selected-repo-count">2 selected</span>
+            <label>Public GitHub repositories</label>
+            <span>Two are required; add up to five.</span>
           </div>
-          <textarea
-            id="repo-list"
-            class="repo-textarea"
-            name="repos"
-            autocomplete="off"
-            spellcheck="false"
-            inputmode="url"
-            aria-describedby="repo-help repo-validation"
-          >vercel/commerce
-nextauthjs/next-auth</textarea>
-          <p id="repo-help" class="repo-helper">Two repositories are required. Add up to five, one per line.</p>
-          <p id="repo-validation" class="repo-helper validation-text">Ready to analyze two repositories.</p>
-          <div class="repo-actions" aria-label="Suggested repositories">
-            <button class="repo-chip" type="button" data-repos="vercel/commerce,nextauthjs/next-auth">Commerce + auth</button>
-            <button class="repo-chip" type="button" data-repos="vercel/commerce,nextauthjs/next-auth,stripe/stripe-node">Commerce + auth + payments</button>
-            <button class="repo-chip" type="button" data-repos="pallets/flask,pallets/werkzeug">Flask + Werkzeug</button>
-            <button class="repo-chip secondary" type="button" data-action="clear">Clear</button>
+          <div class="repo-picker" id="repo-picker">
+            <input class="repo-input" name="repo-1" type="text" value="vercel/commerce" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 1" />
+            <input class="repo-input" name="repo-2" type="text" value="nextauthjs/next-auth" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 2" />
+            <input class="repo-input" name="repo-3" type="text" value="stripe/stripe-node" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 3" />
+            <input class="repo-input" name="repo-4" type="text" value="" placeholder="optional fourth repo" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 4" />
+            <input class="repo-input" name="repo-5" type="text" value="" placeholder="optional fifth repo" autocomplete="off" spellcheck="false" inputmode="url" aria-label="Repository 5" />
           </div>
           <button type="submit">Analyze system</button>
           <p id="repo-status" class="status-text" role="status">Checking analyzer runtime.</p>
@@ -96,13 +183,38 @@ nextauthjs/next-auth</textarea>
         </div>
       </section>
 
+      <section class="badge-band" aria-labelledby="badge-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">shareable output</p>
+            <h2 id="badge-title">Analysis badge</h2>
+          </div>
+          <p class="section-note">
+            Every successful run generates a badge with repos, mode, coverage, top blocks, and a link back to this analyzer.
+          </p>
+        </div>
+        <div class="badge-layout">
+          <div class="badge-preview" id="badge-preview" aria-live="polite">
+            <div class="badge-empty">Run an analysis to generate a badge.</div>
+          </div>
+          <div class="badge-share">
+            <label for="badge-markdown">Markdown badge snippet</label>
+            <textarea id="badge-markdown" readonly placeholder="Run an analysis to create a shareable badge snippet."></textarea>
+            <div class="badge-actions">
+              <button id="badge-copy" type="button" class="secondary" disabled>Copy Markdown</button>
+              <button id="badge-download" type="button" disabled>Download SVG</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="case-band" aria-labelledby="case-title">
         <div class="section-heading">
           <div>
             <p class="eyebrow">quick starts</p>
-            <h2 id="case-title">Known public systems to try.</h2>
+            <h2 id="case-title">Known public repos to try.</h2>
           </div>
-          <p class="section-note">Clicking a card fills the selector and starts the hosted run.</p>
+          <p class="section-note">These examples keep the page concrete without turning it into a benchmark report.</p>
         </div>
         <div class="case-grid" id="case-grid"></div>
       </section>
@@ -144,35 +256,10 @@ nextauthjs/next-auth</textarea>
           </table>
         </div>
       </section>
-
-      <section class="badge-band" aria-labelledby="badge-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">shareable output</p>
-            <h2 id="badge-title">Analysis badge</h2>
-          </div>
-          <p class="section-note">
-            Every successful run generates a badge with repos, mode, coverage, top blocks, and a link back to this analyzer.
-          </p>
-        </div>
-        <div class="badge-layout">
-          <div class="badge-preview" id="badge-preview" aria-live="polite">
-            <div class="badge-empty">Run an analysis to generate a badge.</div>
-          </div>
-          <div class="badge-share">
-            <label for="badge-markdown">Markdown badge snippet</label>
-            <textarea id="badge-markdown" readonly placeholder="Run an analysis to create a shareable badge snippet."></textarea>
-            <div class="badge-actions">
-              <button id="badge-copy" type="button" class="secondary" disabled>Copy Markdown</button>
-              <button id="badge-download" type="button" disabled>Download SVG</button>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
     <script>
       window.LOGICLENS_API_BASE_URL = "https://ml4rer2cg2nnx7ja6nkalrdnu40xlwpm.lambda-url.eu-central-1.on.aws";
     </script>
-    <script src="./assets/pages.js?v=20260511-pages-ux-cleanup-001"></script>
+    <script src="./assets/pages.js?v=20260507-commerce-system-001"></script>
   </body>
 </html>
