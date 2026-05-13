@@ -129,3 +129,4 @@ Trending repos are vendored locally, not committed:
 cd backend
 .\.venv-win\Scripts\python.exe -m heart_transplant.cli ingest-vendor-corpus ..\vendor\github-repos
 ```
+.
